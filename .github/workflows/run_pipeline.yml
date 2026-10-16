@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 110   # Max run time per trigger (safely under 2hr gap)
     concurrency:
       group: tryit-pipeline
-      cancel-in-progress: false
+      cancel-in-progress: true
 
     steps:
       - name: Checkout repository
