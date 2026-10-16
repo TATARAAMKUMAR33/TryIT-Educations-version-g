@@ -1,0 +1,6 @@
+supabase>=2.0.0
+python-dotenv>=1.0.0
+openai>=1.0.0
+google-genai>=1.0.0
+json-repair>=0.30.0
+requests>=2.31.0

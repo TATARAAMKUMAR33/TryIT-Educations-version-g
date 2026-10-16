@@ -1,0 +1,60 @@
+name: TryIT Question Generator
+
+on:
+  schedule:
+    # Runs every 2 hours (00:00, 02:00, 04:00 ... UTC)
+    # That's every 2 hours in UTC = 05:30, 07:30, 09:30 IST etc.
+    - cron: '0 */2 * * *'
+  workflow_dispatch:  # Manual trigger from GitHub UI
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110   # Max run time per trigger (safely under 2hr gap)
+    concurrency:
+      group: tryit-pipeline
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create .env from secrets
+        run: |
+          cat > .env << 'ENVEOF'
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+          NVIDIA_API_KEY_1=${{ secrets.NVIDIA_API_KEY_1 }}
+          NVIDIA_API_KEY_2=${{ secrets.NVIDIA_API_KEY_2 }}
+          NVIDIA_API_KEY_3=${{ secrets.NVIDIA_API_KEY_3 }}
+          NVIDIA_API_KEY_4=${{ secrets.NVIDIA_API_KEY_4 }}
+          NVIDIA_API_KEY_5=${{ secrets.NVIDIA_API_KEY_5 }}
+          GROQ_API_KEY_1=${{ secrets.GROQ_API_KEY_1 }}
+          GROQ_API_KEY_2=${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3=${{ secrets.GROQ_API_KEY_3 }}
+          GROQ_API_KEY_4=${{ secrets.GROQ_API_KEY_4 }}
+          GROQ_API_KEY_5=${{ secrets.GROQ_API_KEY_5 }}
+          GEMINI_API_KEY_1=${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2=${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3=${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4=${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5=${{ secrets.GEMINI_API_KEY_5 }}
+          GEMINI_API_KEY_6=${{ secrets.GEMINI_API_KEY_6 }}
+          GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}
+          ENVEOF
+
+      - name: Run generator
+        run: python3 -u generate_master.py
+        env:
+          PYTHONUNBUFFERED: "1"
