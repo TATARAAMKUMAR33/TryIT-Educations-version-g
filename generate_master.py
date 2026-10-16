@@ -38,10 +38,7 @@ if _g and _g.strip(): GEMINI_KEYS.append(_g.strip())
 for i in range(1, 7):
     _k = os.getenv(f"GEMINI_API_KEY_{i}")
     if _k and _k.strip(): GEMINI_KEYS.append(_k.strip())
-# Load GOOGLE_API_KEY (yesterday's un-suffixed working key)
-_gg = os.getenv("GOOGLE_API_KEY")
-if _gg and _gg.strip() and _gg.strip() not in GEMINI_KEYS:
-    GEMINI_KEYS.append(_gg.strip())
+# GOOGLE_API_KEY removed — Gemini keys are sufficient
 
 # ── PROVIDER POOLS ──
 # Build OpenAI clients once per key (reuse across requests)

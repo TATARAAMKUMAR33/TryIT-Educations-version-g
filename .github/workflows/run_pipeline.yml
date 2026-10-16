@@ -51,7 +51,6 @@ jobs:
           GEMINI_API_KEY_4=${{ secrets.GEMINI_API_KEY_4 }}
           GEMINI_API_KEY_5=${{ secrets.GEMINI_API_KEY_5 }}
           GEMINI_API_KEY_6=${{ secrets.GEMINI_API_KEY_6 }}
-          GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}
           ENVEOF
 
       - name: Run generator
