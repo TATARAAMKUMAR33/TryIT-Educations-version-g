@@ -48,6 +48,20 @@ jobs:
           GEMINI_API_KEY_3=${{ secrets.GEMINI_API_KEY_3 }}
           GEMINI_API_KEY_4=${{ secrets.GEMINI_API_KEY_4 }}
           GEMINI_API_KEY_5=${{ secrets.GEMINI_API_KEY_5 }}
+          SAMBANOVA_API_KEY_1=${{ secrets.SAMBANOVA_API_KEY_1 }}
+          SAMBANOVA_API_KEY_2=${{ secrets.SAMBANOVA_API_KEY_2 }}
+          SAMBANOVA_API_KEY_3=${{ secrets.SAMBANOVA_API_KEY_3 }}
+          SAMBANOVA_API_KEY_4=${{ secrets.SAMBANOVA_API_KEY_4 }}
+          SAMBANOVA_API_KEY_5=${{ secrets.SAMBANOVA_API_KEY_5 }}
+          MISTRAL_API_KEY_1=${{ secrets.MISTRAL_API_KEY_1 }}
+          MISTRAL_API_KEY_2=${{ secrets.MISTRAL_API_KEY_2 }}
+          MISTRAL_API_KEY_3=${{ secrets.MISTRAL_API_KEY_3 }}
+          OPENAI_API_KEY_1=${{ secrets.OPENAI_API_KEY_1 }}
+          OPENAI_API_KEY_2=${{ secrets.OPENAI_API_KEY_2 }}
+          OPENAI_API_KEY_3=${{ secrets.OPENAI_API_KEY_3 }}
+          GH_MODELS_TOKEN_1=${{ secrets.GH_MODELS_TOKEN_1 }}
+          GH_MODELS_TOKEN_2=${{ secrets.GH_MODELS_TOKEN_2 }}
+          GH_MODELS_TOKEN_3=${{ secrets.GH_MODELS_TOKEN_3 }}
           TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}
           ENVEOF
