@@ -58,16 +58,14 @@ jobs:
         run: |
           python exam_scorecard.py
           REPORT=$(cat /tmp/scorecard.txt)
-          
           if [ "${{ job.status }}" = "success" ]; then
-            EMOJI="✅"
-            TITLE="SUCCESS"
+            EMOJI="✅"; TITLE="SUCCESS"
           else
-            EMOJI="🔴"
-            TITLE="FAILED"
+            EMOJI="🔴"; TITLE="FAILED"
           fi
-          
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -F chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+          MSG=$(printf '%s *Exam Generator %s*\n\n%s' "$EMOJI" "$TITLE" "$REPORT")
+          curl -S --fail-with-body -X POST \
+            "https://api.telegram.org/bot${{ secrets.TELEGRAM_EXAM_BOT_TOKEN }}/sendMessage" \
+            -F chat_id="${{ secrets.TELEGRAM_EXAM_CHAT_ID }}" \
             -F parse_mode="Markdown" \
-            -F text="$EMOJI *Exam Generator $TITLE*%0A%0A$REPORT"
+            --data-urlencode "text=${MSG}"
