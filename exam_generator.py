@@ -138,24 +138,29 @@ def _call_nvidia(api_key: str, prompt: str, max_tokens: int) -> str:
 # ══════════════════════════════════════════════════════════════
 
 def build_prompt(queue_item: dict) -> str:
-    category   = queue_item["category"]
+    category = queue_item["category"]
     subcategory = queue_item["subcategory"]
-    desc       = queue_item["desc"]
+    desc = queue_item["desc"]
+
+    class_rule = ""
+    if category == "board_exams":
+        class_rule = """
+🚨 CRITICAL RULE FOR BOARD EXAMS:
+You MUST generate a separate exam entry for EVERY class from 1 to 12. 
+Do NOT just generate Class 10 and Class 12. 
+You must include: Class 1, Class 2, Class 3, Class 4, Class 5, Class 6, Class 7, Class 8, Class 9, Class 10, Class 11, Class 12.
+If you skip any class, you fail the prompt.
+"""
 
     return f"""You are an expert on Indian examinations and education system.
 
 STRICT INSTRUCTION: Generate data ONLY for: {subcategory}
 Category: {category}
 Description: {desc}
-
-❌ DO NOT generate data for any other board or exam body.
-❌ DO NOT copy or reuse data from CBSE, ICSE, or any previously seen board.
-✅ ONLY generate exams conducted BY {subcategory} specifically.
-✅ Use the exact conducting body name for {subcategory} — not a generic one.
+{class_rule}
 
 Return ONLY a valid JSON array (no markdown, no explanation).
 Each object in the array represents ONE EXAM with this exact schema:
-
 [
   {{
     "exam_body": "Full name of conducting authority",
@@ -227,14 +232,11 @@ Each object in the array represents ONE EXAM with this exact schema:
 ]
 
 RULES:
-1. Generate ALL exams under {subcategory} — do not miss any
-2. For BOARD EXAMS: include ALL classes (Class 1 internal, Class 5 assessment, 
-   Class 8 board, Class 10 final board, Class 12 final board) — every level
-3. Mark confidence as LOW if you are unsure of any specific numbers
-4. Use realistic Indian exam data only
-5. negative_value: 0.25 for 1/4, 0.33 for 1/3, 0.5 for half, 0 for no negative
-6. Keep each exam object COMPACT — summarize topics, do not over-expand
-7. Return ONLY the JSON array — no other text
+1. Generate up to 5 exams under {subcategory} — if there are more than 5, only generate the first 5 (we will fetch the rest in the next run).
+2. Mark confidence as LOW if you are unsure of any specific numbers
+3. Use realistic Indian exam data only
+4. negative_value: 0.25 for 1/4, 0.33 for 1/3, 0.5 for half, 0 for no negative
+5. Return ONLY the JSON array — no other text
 """
 
 
@@ -368,7 +370,7 @@ def process_queue_item(item: dict, dry_run: bool = False) -> dict:
 
     # 2. Parse
     exam_data = parse_json_response(raw_response)
-    if not exam_data:
+    if not exam_data or not isinstance(exam_data, list):
         stats["status"] = "failed_parse"
         stats["errors"].append("Could not parse JSON from LLM response")
         log_progress(item, stats)
