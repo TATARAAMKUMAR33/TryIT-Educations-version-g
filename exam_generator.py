@@ -218,6 +218,8 @@ def validate_exam_data(data: list, subcategory: str) -> tuple[list, list]:
         # Check confidence flag
         if exam.get("confidence") == "LOW":
             issues.append("LOW confidence — needs manual verification")
+        if exam.get("confidence") == "MEDIUM":
+12issues.append("MEDIUM confidence — verify exam actually exists")
 
         # Add metadata
         exam["_generated_at"] = datetime.now().isoformat()
