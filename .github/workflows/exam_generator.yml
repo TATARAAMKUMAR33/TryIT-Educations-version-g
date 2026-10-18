@@ -52,7 +52,7 @@ jobs:
 
       - name: Run Exam Generator (Resume)
         run: python exam_generator.py --resume || python exam_generator.py
-        
+
       - name: Generate Scorecard & Notify Telegram
         if: always()
         run: |
@@ -71,4 +71,3 @@ jobs:
             -F chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
             -F parse_mode="Markdown" \
             -F text="$EMOJI *Exam Generator $TITLE*%0A%0A$REPORT"
-
