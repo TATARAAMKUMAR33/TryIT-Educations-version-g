@@ -107,7 +107,7 @@ def _call_groq(api_key: str, prompt: str, max_tokens: int) -> str:
 def _call_gemini(api_key: str, prompt: str, max_tokens: int) -> str:
     import google.generativeai as genai
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    model = genai.GenerativeModel("gemini-3.8-flash")
     response = model.generate_content(
         prompt,
         generation_config=genai.GenerationConfig(
@@ -141,102 +141,46 @@ def build_prompt(queue_item: dict) -> str:
     category = queue_item["category"]
     subcategory = queue_item["subcategory"]
     desc = queue_item["desc"]
-
-    class_rule = ""
-    if category == "board_exams":
-        class_rule = """
-🚨 CRITICAL RULE FOR BOARD EXAMS:
-You MUST generate a separate exam entry for EVERY class from 1 to 12. 
-Do NOT just generate Class 10 and Class 12. 
-You must include: Class 1, Class 2, Class 3, Class 4, Class 5, Class 6, Class 7, Class 8, Class 9, Class 10, Class 11, Class 12.
-If you skip any class, you fail the prompt.
-"""
+    prompt_rule = queue_item.get("prompt_rule", "Generate all relevant exams.")
 
     return f"""You are an expert on Indian examinations and education system.
 
 STRICT INSTRUCTION: Generate data ONLY for: {subcategory}
-Category: {category}
 Description: {desc}
-{class_rule}
+
+CRITICAL RULE: {prompt_rule}
 
 Return ONLY a valid JSON array (no markdown, no explanation).
-Each object in the array represents ONE EXAM with this exact schema:
+Each object in the array represents ONE EXAM with this exact schema. Keep the JSON as compact as possible:
 [
   {{
     "exam_body": "Full name of conducting authority",
-    "exam_body_short": "Short abbreviation",
     "exam_name": "Full exam name",
-    "exam_name_short": "Short name/abbreviation",
     "category": "{category}",
     "subcategory": "{subcategory}",
     "state": "State code or NATIONAL",
-    "frequency": "Annual/Biannual/Irregular/Once",
-    "mode": "Online/Offline/Both",
+    "frequency": "Annual",
+    "mode": "Offline",
     "language_medium": ["English", "Tamil"],
-    "eligibility": {{
-      "min_age": 18,
-      "max_age": 35,
-      "age_relaxation": {{"SC/ST": 5, "OBC": 3}},
-      "qualification": "10th Pass / 12th Pass / Graduate / PG",
-      "domicile": "None / State-specific",
-      "attempts": "6 / Unlimited / per-category",
-      "physical_standards": null
-    }},
+    "eligibility": {{ "min_age": 18, "qualification": "10th Pass" }},
     "stages": [
       {{
-        "stage_order": 1,
         "stage_name": "Preliminary",
-        "stage_short": "Prelims",
-        "is_qualifying": false,
         "papers": [
           {{
-            "paper_order": 1,
-            "paper_name": "General Studies Paper 1",
-            "paper_short": "GS1",
-            "total_marks": 200,
-            "questions": 100,
-            "duration_minutes": 120,
-            "negative_marking": true,
+            "paper_name": "Paper 1",
+            "total_marks": 100,
+            "duration_minutes": 60,
             "negative_value": 0.33,
-            "question_type": "MCQ",
-            "medium": ["English", "Tamil"],
-            "subjects": [
-              {{
-                "subject_name": "Indian History",
-                "weightage_percent": 15,
-                "approx_questions": 15,
-                "key_topics": ["Ancient India", "Medieval India", "Modern India", "Freedom Struggle"],
-                "difficulty": "Moderate"
-              }}
-            ]
+            "subjects": [ {{ "subject_name": "Maths", "weightage_percent": 50 }} ]
           }}
         ]
       }}
     ],
-    "cutoffs": {{
-      "note": "Historical approximate cutoffs",
-      "general": 120,
-      "obc": 110,
-      "sc": 100,
-      "st": 95
-    }},
-    "total_marks_final": 200,
-    "vacancy_approx": 500,
-    "official_website": "https://example.gov.in",
-    "notification_month": "March",
-    "exam_month": "June",
-    "difficulty": "Moderate",
-    "notes": "Any important notes about this exam",
-    "confidence": "HIGH/MEDIUM/LOW"
+    "cutoffs": {{ "general": 120 }},
+    "confidence": "HIGH"
   }}
 ]
-
-RULES:
-1. Generate up to 5 exams under {subcategory} — if there are more than 5, only generate the first 5 (we will fetch the rest in the next run).
-2. Mark confidence as LOW if you are unsure of any specific numbers
-3. Use realistic Indian exam data only
-4. negative_value: 0.25 for 1/4, 0.33 for 1/3, 0.5 for half, 0 for no negative
-5. Return ONLY the JSON array — no other text
 """
 
 
