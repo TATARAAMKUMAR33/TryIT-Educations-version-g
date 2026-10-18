@@ -1,0 +1,73 @@
+name: TryIT Exam Universe Generator
+
+on:
+  schedule:
+    - cron: '0 */3 * * *' # Every 3 hours
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  generate_exams:
+    runs-on: ubuntu-latest
+    timeout-minutes: 170
+    concurrency:
+      group: exam-universe
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env
+        run: |
+          cat > .env << 'ENVEOF'
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+          NVIDIA_API_KEY_1=${{ secrets.NVIDIA_API_KEY_1 }}
+          NVIDIA_API_KEY_2=${{ secrets.NVIDIA_API_KEY_2 }}
+          NVIDIA_API_KEY_3=${{ secrets.NVIDIA_API_KEY_3 }}
+          NVIDIA_API_KEY_4=${{ secrets.NVIDIA_API_KEY_4 }}
+          NVIDIA_API_KEY_5=${{ secrets.NVIDIA_API_KEY_5 }}
+          GROQ_API_KEY_1=${{ secrets.GROQ_API_KEY_1 }}
+          GROQ_API_KEY_2=${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3=${{ secrets.GROQ_API_KEY_3 }}
+          GROQ_API_KEY_4=${{ secrets.GROQ_API_KEY_4 }}
+          GROQ_API_KEY_5=${{ secrets.GROQ_API_KEY_5 }}
+          GEMINI_API_KEY_1=${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2=${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3=${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4=${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5=${{ secrets.GEMINI_API_KEY_5 }}
+          TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}
+          ENVEOF
+
+      - name: Run Exam Generator (Resume)
+        run: python exam_generator.py --resume || python exam_generator.py
+        
+      - name: Generate Scorecard & Notify Telegram
+        if: always()
+        run: |
+          python exam_scorecard.py
+          REPORT=$(cat /tmp/scorecard.txt)
+          
+          if [ "${{ job.status }}" = "success" ]; then
+            EMOJI="✅"
+            TITLE="SUCCESS"
+          else
+            EMOJI="🔴"
+            TITLE="FAILED"
+          fi
+          
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d parse_mode="Markdown" \
+            -d text="$EMOJI *Exam Generator $TITLE*%0A%0A$REPORT"
