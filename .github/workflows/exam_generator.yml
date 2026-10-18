@@ -51,7 +51,7 @@ jobs:
           ENVEOF
 
       - name: Run Exam Generator (Resume)
-        run: python exam_generator.py --resume || python exam_generator.py
+        run: python exam_generator.py --resume
 
       - name: Generate Scorecard & Notify Telegram
         if: always()
