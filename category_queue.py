@@ -91,3 +91,21 @@ GENERATION_QUEUE = [
 
 def get_queue_by_phase(phase: str) -> list:
     return [q for q in GENERATION_QUEUE if q["phase"] == phase]
+
+def get_queue_by_phase(phase: str) -> list:
+    return [q for q in GENERATION_QUEUE if q["phase"] == phase]
+
+def get_queue_by_category(category: str) -> list:
+    return [q for q in GENERATION_QUEUE if q["category"] == category]
+
+def get_all_categories() -> list:
+    seen = set()
+    cats = []
+    for q in GENERATION_QUEUE:
+        if q["category"] not in seen:
+            cats.append(q["category"])
+            seen.add(q["category"])
+    return cats
+
+def get_total_count() -> int:
+    return len(GENERATION_QUEUE)
