@@ -24,7 +24,7 @@ def send_telegram(msg):
         requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage", data={"chat_id": TG_CHAT, "text": msg}, timeout=10)
     except: pass
 
-# --- GROQ (REWRITER) CONFIG ---
+# --- GROQ CONFIG ---
 groq_keys = [env.get(f"GROQ_API_KEY_{i}") for i in range(1, 6)]
 groq_keys = [k for k in groq_keys if k]
 MODELS = ["openai/gpt-oss-20b", "llama-3.1-8b-instant", "meta-llama/llama-4-scout-17b-16e-instruct"]
@@ -43,7 +43,7 @@ def call_groq(prompt):
                 continue
     return None, None
 
-# --- GEMINI (VERIFIER) CONFIG ---
+# --- GEMINI CONFIG ---
 gemini_keys = [env.get(f"GEMINI_API_KEY_{i}") for i in range(1, 6)]
 gemini_keys = [k for k in gemini_keys if k]
 
@@ -74,19 +74,26 @@ Output ONLY valid JSON:
                 return result.get('passed', False), result.get('reason', 'No reason')
         except Exception as e:
             if "429" in str(e):
-                time.sleep(2) # Rate limit pause
+                time.sleep(2)
             continue
-    print("  ⚠️ Gemini verification skipped (All keys hit limits). Accepting Groq's rewrite.")
-    return True, "Gemini offline, auto-passed." # Fallback to keep pipeline moving
+    print("  ⚠️ Gemini verification skipped (All keys hit limits). Accepting rewrite.")
+    return True, "Gemini offline, auto-passed."
 
-def rewrite_batch(batch_size=1): # Process 1 at a time to avoid Gemini rate limits
-    res = sb.table('questions').select('*').not_.in('generated_by', ['entity_rewriter', 'entity_rewriter_failed', 'entity_rewriter_rejected']).limit(batch_size).execute()
+def rewrite_batch(batch_size=1):
+    # Fetch 50 rows and filter in Python to avoid Supabase syntax errors
+    res = sb.table('questions').select('*').limit(50).execute()
     
     if not res.data: return False
+    
+    # Find the first question that hasn't been processed
+    valid_q = next((q for q in res.data if q.get('generated_by') not in ('entity_rewriter', 'entity_rewriter_failed', 'entity_rewriter_rejected')), None)
+    
+    if not valid_q: 
+        return False
 
-    for q in res.data:
-        context = get_context(q['topic_id'])
-        prompt = f"""
+    q = valid_q
+    context = get_context(q['topic_id'])
+    prompt = f"""
 You are an expert Indian exam question setter.
 Rewrite the following question to fit a specific cultural context, keeping the EXACT SAME mathematical/logical logic, numbers, and correct answer.
 
@@ -105,37 +112,36 @@ Output MUST be ONLY a valid JSON object (no markdown). Use double backslashes fo
   "explanation": "The rewritten explanation matching the new context"
 }}
 """
-        print(f"Rewriting {q['id']}...")
-        raw, used_model = call_groq(prompt)
+    print(f"Rewriting {q['id']}...")
+    raw, used_model = call_groq(prompt)
+    
+    if not raw:
+        sb.table('questions').update({'generated_by': 'entity_rewriter_failed'}).eq('id', q['id']).execute()
+        return True
         
-        if not raw:
-            sb.table('questions').update({'generated_by': 'entity_rewriter_failed'}).eq('id', q['id']).execute()
-            continue
+    try:
+        data = json_repair.loads(raw)
+        print(f"  🧐 Groq done. Sending to Gemini for strict verification...")
+        
+        passed, reason = verify_with_gemini(q['question_en'], data)
+        
+        if passed:
+            sb.table('questions').update({
+                'question_en': data['question_en'],
+                'options_en': data['options_en'],
+                'explanation': data['explanation'],
+                'generated_by': 'entity_rewriter'
+            }).eq('id', q['id']).execute()
+            print(f"  ✅ Verified & Saved {q['id']} (via {used_model})")
+        else:
+            print(f"  ❌ Gemini Rejected: {reason}")
+            sb.table('questions').update({'generated_by': 'entity_rewriter_rejected'}).eq('id', q['id']).execute()
             
-        try:
-            data = json_repair.loads(raw)
-            print(f"  🧐 Groq done. Sending to Gemini for strict verification...")
-            
-            passed, reason = verify_with_gemini(q['question_en'], data)
-            
-            if passed:
-                sb.table('questions').update({
-                    'question_en': data['question_en'],
-                    'options_en': data['options_en'],
-                    'explanation': data['explanation'],
-                    'generated_by': 'entity_rewriter'
-                }).eq('id', q['id']).execute()
-                print(f"  ✅ Verified & Saved {q['id']} (via {used_model})")
-            else:
-                print(f"  ❌ Gemini Rejected: {reason}")
-                sb.table('questions').update({'generated_by': 'entity_rewriter_rejected'}).eq('id', q['id']).execute()
-                
-        except Exception as e:
-            print(f"  🚨 Error on {q['id']}: {e}")
-            sb.table('questions').update({'generated_by': 'entity_rewriter_failed'}).eq('id', q['id']).execute()
-            
-        time.sleep(1) # Pause for APIs
-
+    except Exception as e:
+        print(f"  🚨 Error on {q['id']}: {e}")
+        sb.table('questions').update({'generated_by': 'entity_rewriter_failed'}).eq('id', q['id']).execute()
+        
+    time.sleep(1)
     return True
 
 if __name__ == "__main__":
