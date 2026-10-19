@@ -141,7 +141,7 @@ def _call_nvidia(api_key: str, prompt: str, max_tokens: int) -> str:
 def build_prompt(queue_item: dict) -> str:
     category = queue_item["category"]
     subcategory = queue_item["subcategory"]
-    desc = queue_item["desc"]
+    desc = queue_item.get("desc", f"All individual exams and levels for {queue_item['subcategory']} in the {queue_item['category']} category.")
     prompt_rule = queue_item.get("prompt_rule", "Generate all relevant exams.")
 
     return f"""You are an expert on Indian examinations and education system.
