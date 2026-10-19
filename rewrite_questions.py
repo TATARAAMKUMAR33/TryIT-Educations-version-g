@@ -80,18 +80,17 @@ Output ONLY valid JSON:
     return True, "Gemini offline, auto-passed."
 
 def rewrite_batch(batch_size=1):
-    # Fetch 50 rows and filter in Python to avoid Supabase syntax errors
-    res = sb.table('questions').select('*').limit(50).execute()
+    # Fetch a question where generated_by is NULL (unprocessed)
+    res = sb.table('questions').select('*').is_('generated_by', 'null').limit(1).execute()
     
-    if not res.data: return False
-    
-    # Find the first question that hasn't been processed
-    valid_q = next((q for q in res.data if q.get('generated_by') not in ('entity_rewriter', 'entity_rewriter_failed', 'entity_rewriter_rejected')), None)
-    
-    if not valid_q: 
+    # If no NULLs left, check for other unprocessed states just in case
+    if not res.data:
+        res = sb.table('questions').select('*').neq('generated_by', 'entity_rewriter').neq('generated_by', 'entity_rewriter_failed').neq('generated_by', 'entity_rewriter_rejected').limit(1).execute()
+
+    if not res.data: 
         return False
 
-    q = valid_q
+    q = res.data[0]
     context = get_context(q['topic_id'])
     prompt = f"""
 You are an expert Indian exam question setter.
