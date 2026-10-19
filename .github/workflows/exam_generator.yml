@@ -67,5 +67,4 @@ jobs:
           curl -S --fail-with-body -X POST \
             "https://api.telegram.org/bot${{ secrets.TELEGRAM_EXAM_BOT_TOKEN }}/sendMessage" \
             --data-urlencode "chat_id=${{ secrets.TELEGRAM_EXAM_CHAT_ID }}" \
-            --data-urlencode "parse_mode=Markdown" \
             --data-urlencode "text=${MSG}"

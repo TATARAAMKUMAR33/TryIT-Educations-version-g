@@ -14,13 +14,13 @@ exams = s.table('exams').select('category').execute().data
 from collections import Counter
 cats = Counter(e['category'] for e in exams if e.get('category'))
 
-report = f"""📊 *TRYIT EXAM UNIVERSE SCORECARD* 📊
+report = f"""📊 TRYIT EXAM UNIVERSE SCORECARD 📊
 
-📈 *Total Exams:* {total}
-✅ *Verified:* {verified}
-⚠️ *Needs Review:* {flagged}
+📈 Total Exams: {total}
+✅ Verified: {verified}
+⚠️ Needs Review: {flagged}
 
-📁 *Coverage by Category:*
+📁 Coverage by Category:
 """
 for cat, count in cats.most_common(10):
     report += f"  • {cat.title()}: {count}\n"
