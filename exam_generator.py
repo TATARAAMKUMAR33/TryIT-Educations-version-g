@@ -386,7 +386,7 @@ def main():
     print("═"*60)
 
     if args.status:
-        key_manager.print_status()
+        # key_manager.print_status()  # Patched: missing method
         return
 
     # Init tracking tables in Supabase
@@ -485,7 +485,8 @@ def main():
 
         # Print key status every 10 items
         if i % 10 == 0:
-            key_manager.print_status()
+            # key_manager.print_status()  # Patched: missing method
+            pass
 
     # Final summary
     print("\n" + "═"*60)
