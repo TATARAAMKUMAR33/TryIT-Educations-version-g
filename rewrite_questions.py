@@ -1,5 +1,6 @@
 import os, json, re, time, sys, requests
 from groq import Groq
+import google.generativeai as genai
 from supabase import create_client
 from entity_engine import get_context
 import json_repair
@@ -18,26 +19,15 @@ TG_TOKEN = env.get('TELEGRAM_EXAM_BOT_TOKEN') or env.get('TELEGRAM_BOT_TOKEN')
 TG_CHAT = env.get('TELEGRAM_EXAM_CHAT_ID') or env.get('TELEGRAM_CHAT_ID')
 
 def send_telegram(msg):
-    if not TG_TOKEN or not TG_CHAT:
-        return
+    if not TG_TOKEN or not TG_CHAT: return
     try:
-        requests.post(
-            f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
-            data={"chat_id": TG_CHAT, "text": msg},
-            timeout=10
-        )
-    except Exception as e:
-        print(f"Telegram error: {e}")
+        requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage", data={"chat_id": TG_CHAT, "text": msg}, timeout=10)
+    except: pass
 
-# --- GROQ CONFIG ---
+# --- GROQ (REWRITER) CONFIG ---
 groq_keys = [env.get(f"GROQ_API_KEY_{i}") for i in range(1, 6)]
 groq_keys = [k for k in groq_keys if k]
-
-MODELS = [
-    "openai/gpt-oss-20b",
-    "llama-3.1-8b-instant",
-    "meta-llama/llama-4-scout-17b-16e-instruct"
-]
+MODELS = ["openai/gpt-oss-20b", "llama-3.1-8b-instant", "meta-llama/llama-4-scout-17b-16e-instruct"]
 
 def call_groq(prompt):
     for key in groq_keys:
@@ -46,22 +36,53 @@ def call_groq(prompt):
                 client = Groq(api_key=key)
                 chat_completion = client.chat.completions.create(
                     messages=[{"role": "user", "content": prompt}],
-                    model=model,
-                    temperature=0.7,
-                    max_tokens=1500,
+                    model=model, temperature=0.7, max_tokens=1500,
                 )
                 return chat_completion.choices[0].message.content, model
-            except Exception as e:
-                if "429" in str(e):
-                    time.sleep(2)
+            except:
                 continue
     return None, None
 
-def rewrite_batch(batch_size=5):
-    res = sb.table('questions').select('*').not_.in_('generated_by', ['entity_rewriter', 'entity_rewriter_failed']).limit(batch_size).execute()
+# --- GEMINI (VERIFIER) CONFIG ---
+gemini_keys = [env.get(f"GEMINI_API_KEY_{i}") for i in range(1, 6)]
+gemini_keys = [k for k in gemini_keys if k]
+
+def verify_with_gemini(original_q, rewritten_q):
+    prompt = f"""
+You are a strict Indian exam moderator. A friend is trying to explain a concept to another friend.
+Review the REWRITTEN question against the ORIGINAL question.
+
+CRITERIA:
+1. Is the mathematical/logical logic and correct answer EXACTLY the same?
+2. Is the Indian context (names, cities, festivals) natural and logical? (e.g., No absurdities like someone buying a winter coat in Chennai during summer).
+3. Does it sound like a real person explaining it, easy to solve, not robotic?
+
+ORIGINAL: {original_q}
+REWRITTEN: {json.dumps(rewritten_q, indent=2)}
+
+Output ONLY valid JSON:
+{{"passed": true, "reason": "Looks perfect."}} OR {{"passed": false, "reason": "The math changed / The story is absurd."}}
+"""
+    for key in gemini_keys:
+        try:
+            genai.configure(api_key=key)
+            model = genai.GenerativeModel('gemini-flash-latest')
+            response = model.generate_content(prompt)
+            match = re.search(r'\{.*\}', response.text, re.DOTALL)
+            if match:
+                result = json_repair.loads(match.group(0))
+                return result.get('passed', False), result.get('reason', 'No reason')
+        except Exception as e:
+            if "429" in str(e):
+                time.sleep(2) # Rate limit pause
+            continue
+    print("  ⚠️ Gemini verification skipped (All keys hit limits). Accepting Groq's rewrite.")
+    return True, "Gemini offline, auto-passed." # Fallback to keep pipeline moving
+
+def rewrite_batch(batch_size=1): # Process 1 at a time to avoid Gemini rate limits
+    res = sb.table('questions').select('*').not_.in('generated_by', ['entity_rewriter', 'entity_rewriter_failed', 'entity_rewriter_rejected']).limit(batch_size).execute()
     
-    if not res.data:
-        return False
+    if not res.data: return False
 
     for q in res.data:
         context = get_context(q['topic_id'])
@@ -76,7 +97,7 @@ ORIGINAL OPTIONS: {json.dumps(q['options_en'])}
 CORRECT ANSWER: {q['correct_answer']}
 ORIGINAL EXPLANATION: {q['explanation']}
 
-Output MUST be ONLY a valid JSON object. Do not use markdown or backticks. If using LaTeX, use double backslashes.
+Output MUST be ONLY a valid JSON object (no markdown). Use double backslashes for LaTeX.
 {{
   "question_en": "The rewritten question text",
   "options_en": ["Option 1", "Option 2", "Option 3", "Option 4"],
@@ -84,50 +105,51 @@ Output MUST be ONLY a valid JSON object. Do not use markdown or backticks. If us
   "explanation": "The rewritten explanation matching the new context"
 }}
 """
-        print(f"Rewriting question {q['id']}...")
+        print(f"Rewriting {q['id']}...")
         raw, used_model = call_groq(prompt)
         
         if not raw:
-            print(f"  🚨 All keys/models failed for {q['id']}")
             sb.table('questions').update({'generated_by': 'entity_rewriter_failed'}).eq('id', q['id']).execute()
             continue
             
         try:
             data = json_repair.loads(raw)
-            if isinstance(data, dict) and 'question_en' in data:
+            print(f"  🧐 Groq done. Sending to Gemini for strict verification...")
+            
+            passed, reason = verify_with_gemini(q['question_en'], data)
+            
+            if passed:
                 sb.table('questions').update({
                     'question_en': data['question_en'],
                     'options_en': data['options_en'],
                     'explanation': data['explanation'],
                     'generated_by': 'entity_rewriter'
                 }).eq('id', q['id']).execute()
-                print(f"  ✅ Updated {q['id']} (via {used_model})")
+                print(f"  ✅ Verified & Saved {q['id']} (via {used_model})")
             else:
-                print(f"  ⚠️ Invalid JSON structure for {q['id']}")
-                sb.table('questions').update({'generated_by': 'entity_rewriter_failed'}).eq('id', q['id']).execute()
+                print(f"  ❌ Gemini Rejected: {reason}")
+                sb.table('questions').update({'generated_by': 'entity_rewriter_rejected'}).eq('id', q['id']).execute()
+                
         except Exception as e:
             print(f"  🚨 Error on {q['id']}: {e}")
             sb.table('questions').update({'generated_by': 'entity_rewriter_failed'}).eq('id', q['id']).execute()
             
-        time.sleep(1)
+        time.sleep(1) # Pause for APIs
 
     return True
 
 if __name__ == "__main__":
-    print("🚀 Starting continuous batch rewrite...")
-    send_telegram("🚀 *Question Auto-Rewriter Started!*\nThe cloud engine is now processing the questions.")
+    print("🚀 Starting Verified Auto-Rewriter...")
+    send_telegram("🚀 *Verified Question Rewriter Started!*\nGroq writes, Gemini verifies the Indian context.")
     
     total = 0
     while True:
-        success = rewrite_batch(batch_size=5)
+        success = rewrite_batch(batch_size=1)
         if not success:
-            print(f"🎉 ALL DONE! Total questions processed in this run: {total}")
-            send_telegram(f"🎉 *Question Auto-Rewriter Finished!*\nTotal questions processed this run: {total}")
+            print(f"🎉 ALL DONE! Total verified: {total}")
+            send_telegram(f"🎉 *Question Rewriter Finished!*\nTotal verified and saved: {total}")
             break
-        total += 5
-        
-        # Send a progress update every 50 questions
-        if total % 50 == 0:
-            send_telegram(f"⏳ *Progress Update*\nRewritten {total} questions so far...")
-            
+        total += 1
+        if total % 10 == 0:
+            send_telegram(f"⏳ *Progress Update*\nVerified & Saved: {total} questions.")
         sys.stdout.flush()

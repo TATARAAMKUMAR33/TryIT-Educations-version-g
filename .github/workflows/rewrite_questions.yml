@@ -26,6 +26,11 @@ jobs:
           GROQ_API_KEY_3=${{ secrets.GROQ_API_KEY_3 }}
           GROQ_API_KEY_4=${{ secrets.GROQ_API_KEY_4 }}
           GROQ_API_KEY_5=${{ secrets.GROQ_API_KEY_5 }}
+          GEMINI_API_KEY_1=${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2=${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3=${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4=${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5=${{ secrets.GEMINI_API_KEY_5 }}
           TELEGRAM_EXAM_BOT_TOKEN=${{ secrets.TELEGRAM_EXAM_BOT_TOKEN }}
           TELEGRAM_EXAM_CHAT_ID=${{ secrets.TELEGRAM_EXAM_CHAT_ID }}
           ENVEOF
