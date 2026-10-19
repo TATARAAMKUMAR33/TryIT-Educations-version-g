@@ -1,3 +1,4 @@
+import re
 #!/usr/bin/env python3
 """
 exam_generator.py
@@ -305,7 +306,8 @@ def process_queue_item(item: dict, dry_run: bool = False) -> dict:
 
     # 1. Generate
     prompt = build_prompt(item)
-    task = "detail_generate" if phase >= 9 else "bulk_generate"
+    phase_num = int(re.match(r"\d+", str(phase)).group())
+    task = "detail_generate" if phase_num >= 9 else "bulk_generate"
     raw_response = call_llm(prompt, task=task, max_tokens=8192)
 
     if not raw_response:

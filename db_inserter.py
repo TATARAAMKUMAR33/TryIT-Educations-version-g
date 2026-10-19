@@ -29,7 +29,7 @@ def make_slug(name: str, subcategory: str) -> str:
     base = f"{name}_{subcategory}".lower()
     base = re.sub(r'[^a-z0-9\s]', '', base)
     base = re.sub(r'\s+', '_', base.strip())
-    base = base[:50]
+    base = base[:80]
     return base
 
 ELIGIBILITY_LEVEL_MAP = {
@@ -159,7 +159,7 @@ def log_progress(queue_item: dict, stats: dict):
         }).execute()
         sb.table("generation_progress").upsert({
             "id": 1, "last_subcategory": queue_item["subcategory"],
-            "last_category": queue_item["category"], "last_phase": queue_item["phase"],
+            "last_category": queue_item["category"], "last_phase": int(re.match(r"\d+", str(queue_item["phase"])).group()),
             "updated_at": datetime.now().isoformat(),
         }).execute()
     except Exception: pass
