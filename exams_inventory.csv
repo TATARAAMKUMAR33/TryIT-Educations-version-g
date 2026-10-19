@@ -1,0 +1,327 @@
+category,subcategory,name,id
+board_exams,CBSE,All India Secondary School Examination (Class 10),all_india_secondary_school_examination_class_10cbs
+board_exams,CBSE,All India Senior School Certificate Examination (Class 12),all_india_senior_school_certificate_examination_cl
+board_exams,CBSE,CBSE Class 1 Annual Examination,cbse_class_1_annual_examinationcbse
+board_exams,CBSE,CBSE Class 2 Annual Examination,cbse_class_2_annual_examinationcbse
+board_exams,CBSE,CBSE Class 3 Annual Examination,cbse_class_3_annual_examinationcbse
+board_exams,CBSE,CBSE Class 4 Annual Examination,cbse_class_4_annual_examinationcbse
+board_exams,CBSE,CBSE Class 5 Annual Examination,cbse_class_5_annual_examinationcbse
+board_exams,CBSE,CBSE Class 6 Annual Examination,cbse_class_6_annual_examinationcbse
+board_exams,CBSE_1_6,CBSE Class 1 Examination,cbse_class_1_examinationcbse16
+board_exams,CBSE_1_6,CBSE Class 2 Examination,cbse_class_2_examinationcbse16
+board_exams,CBSE_1_6,CBSE Class 3 Examination,cbse_class_3_examinationcbse16
+board_exams,CBSE_1_6,CBSE Class 4 Examination,cbse_class_4_examinationcbse16
+board_exams,CBSE_1_6,CBSE Class 5 Examination,cbse_class_5_examinationcbse16
+board_exams,CBSE_1_6,CBSE Class 6 Examination,cbse_class_6_examinationcbse16
+board_exams,CBSE_7_12,CBSE Class 10 Examination,cbse_class_10_examinationcbse712
+board_exams,CBSE_7_12,CBSE Class 11 Examination,cbse_class_11_examinationcbse712
+board_exams,CBSE_7_12,CBSE Class 12 Examination,cbse_class_12_examinationcbse712
+board_exams,CBSE_7_12,CBSE Class 7 Examination,cbse_class_7_examinationcbse712
+board_exams,CBSE_7_12,CBSE Class 8 Examination,cbse_class_8_examinationcbse712
+board_exams,CBSE_7_12,CBSE Class 9 Examination,cbse_class_9_examinationcbse712
+board_exams,IB,IB Primary Years Programme (PYP) – Class 1,ib_primary_years_programme_pyp_class_1ib
+board_exams,IB,IB Primary Years Programme (PYP) – Class 2,ib_primary_years_programme_pyp_class_2ib
+board_exams,IB,IB Primary Years Programme (PYP) – Class 3,ib_primary_years_programme_pyp_class_3ib
+board_exams,IB,IB Primary Years Programme (PYP) – Class 4,ib_primary_years_programme_pyp_class_4ib
+board_exams,IB,IB Primary Years Programme (PYP) – Class 5,ib_primary_years_programme_pyp_class_5ib
+board_exams,IB,IB Primary Years Programme (PYP) – Class 6,ib_primary_years_programme_pyp_class_6ib
+board_exams,IB_1_6,IB Primary Years Programme Year 1 Assessment,ib_primary_years_programme_year_1_assessmentib16
+board_exams,IB_1_6,IB Primary Years Programme Year 2 Assessment,ib_primary_years_programme_year_2_assessmentib16
+board_exams,IB_1_6,IB Primary Years Programme Year 3 Assessment,ib_primary_years_programme_year_3_assessmentib16
+board_exams,IB_1_6,IB Primary Years Programme Year 4 Assessment,ib_primary_years_programme_year_4_assessmentib16
+board_exams,IB_1_6,IB Primary Years Programme Year 5 Assessment,ib_primary_years_programme_year_5_assessmentib16
+board_exams,IB_1_6,IB Primary Years Programme Year 6 Assessment,ib_primary_years_programme_year_6_assessmentib16
+board_exams,IB_7_12,IB Diploma Programme Year 1 Final Examination,ib_diploma_programme_year_1_final_examinationib712
+board_exams,IB_7_12,IB Diploma Programme Year 1 Mock Examination,ib_diploma_programme_year_1_mock_examinationib712
+board_exams,IB_7_12,IB Diploma Programme Year 2 Final Examination,ib_diploma_programme_year_2_final_examinationib712
+board_exams,IB_7_12,IB Diploma Programme Year 2 Mock Examination,ib_diploma_programme_year_2_mock_examinationib712
+board_exams,IB_7_12,IB Middle Years Programme Year 4 eAssessment,ib_middle_years_programme_year_4_eassessmentib712
+board_exams,IB_7_12,IB Middle Years Programme Year 5 eAssessment,ib_middle_years_programme_year_5_eassessmentib712
+board_exams,ICSE_1_6,ICSE Class 1 Examination,icse_class_1_examinationicse16
+board_exams,ICSE_1_6,ICSE Class 2 Examination,icse_class_2_examinationicse16
+board_exams,ICSE_1_6,ICSE Class 3 Examination,icse_class_3_examinationicse16
+board_exams,ICSE_1_6,ICSE Class 4 Examination,icse_class_4_examinationicse16
+board_exams,ICSE_1_6,ICSE Class 5 Examination,icse_class_5_examinationicse16
+board_exams,ICSE_1_6,ICSE Class 6 Examination,icse_class_6_examinationicse16
+board_exams,ICSE_7_12,ICSE Class 10 Examination,icse_class_10_examinationicse712
+board_exams,ICSE_7_12,ICSE Class 11 Examination,icse_class_11_examinationicse712
+board_exams,ICSE_7_12,ICSE Class 12 Examination,icse_class_12_examinationicse712
+board_exams,ICSE_7_12,ICSE Class 7 Examination,icse_class_7_examinationicse712
+board_exams,ICSE_7_12,ICSE Class 8 Examination,icse_class_8_examinationicse712
+board_exams,ICSE_7_12,ICSE Class 9 Examination,icse_class_9_examinationicse712
+board_exams,ICSE_ISC,CISCE Class 1 Examination,cisce_class_1_examinationicseisc
+board_exams,ICSE_ISC,CISCE Class 2 Examination,cisce_class_2_examinationicseisc
+board_exams,ICSE_ISC,CISCE Class 3 Examination,cisce_class_3_examinationicseisc
+board_exams,ICSE_ISC,CISCE Class 4 Examination,cisce_class_4_examinationicseisc
+board_exams,ICSE_ISC,CISCE Class 5 Examination,cisce_class_5_examinationicseisc
+board_exams,ICSE_ISC,CISCE Class 6 Examination,cisce_class_6_examinationicseisc
+board_exams,ICSE_ISC,ICSE Class 1 Annual Assessment,icse_class_1_annual_assessmenticseisc
+board_exams,ICSE_ISC,ICSE Class 2 Annual Assessment,icse_class_2_annual_assessmenticseisc
+board_exams,ICSE_ISC,ICSE Class 3 Annual Examination,icse_class_3_annual_examinationicseisc
+board_exams,ICSE_ISC,ICSE Class 4 Annual Examination,icse_class_4_annual_examinationicseisc
+board_exams,ICSE_ISC,ICSE Class 5 Annual Examination,icse_class_5_annual_examinationicseisc
+board_exams,IGCSE,Cambridge IGCSE – Class 10,cambridge_igcse_class_10igcse
+board_exams,IGCSE,Cambridge IGCSE – Class 9,cambridge_igcse_class_9igcse
+board_exams,IGCSE,Cambridge International A Level – Class 12,cambridge_international_a_level_class_12igcse
+board_exams,IGCSE,Cambridge International AS Level – Class 11,cambridge_international_as_level_class_11igcse
+board_exams,IGCSE,Cambridge International General Certificate of Secondary Education,cambridge_international_general_certificate_of_sec
+board_exams,IGCSE,Cambridge Lower Secondary – Class 6,cambridge_lower_secondary_class_6igcse
+board_exams,IGCSE,Cambridge Lower Secondary – Class 7,cambridge_lower_secondary_class_7igcse
+board_exams,IGCSE,Cambridge Lower Secondary – Class 8,cambridge_lower_secondary_class_8igcse
+board_exams,IGCSE,Cambridge Primary Checkpoint Examination (Class 6),cambridge_primary_checkpoint_examination_class_6igcse
+board_exams,IGCSE,Cambridge Primary Checkpoint – Class 1,cambridge_primary_checkpoint_class_1igcse
+board_exams,IGCSE,Cambridge Primary Checkpoint – Class 2,cambridge_primary_checkpoint_class_2igcse
+board_exams,IGCSE,Cambridge Primary Checkpoint – Class 3,cambridge_primary_checkpoint_class_3igcse
+board_exams,IGCSE,Cambridge Primary Checkpoint – Class 4,cambridge_primary_checkpoint_class_4igcse
+board_exams,IGCSE,Cambridge Primary Checkpoint – Class 5,cambridge_primary_checkpoint_class_5igcse
+board_exams,IGCSE,Cambridge Primary Programme Year 1,cambridge_primary_programme_year_1igcse
+board_exams,IGCSE,Cambridge Primary Programme Year 2,cambridge_primary_programme_year_2igcse
+board_exams,IGCSE,Cambridge Primary Programme Year 3,cambridge_primary_programme_year_3igcse
+board_exams,IGCSE,Cambridge Primary Programme Year 4,cambridge_primary_programme_year_4igcse
+board_exams,IGCSE,Cambridge Primary Programme Year 5,cambridge_primary_programme_year_5igcse
+board_exams,IGCSE,Cambridge Primary Programme Year 6,cambridge_primary_programme_year_6igcse
+board_exams,IGCSE,Cambridge Primary Stage 1 Assessment (Class 1),cambridge_primary_stage_1_assessment_class_1igcse
+board_exams,IGCSE,Cambridge Primary Stage 2 Assessment (Class 2),cambridge_primary_stage_2_assessment_class_2igcse
+board_exams,IGCSE,Cambridge Primary Stage 3 Assessment (Class 3),cambridge_primary_stage_3_assessment_class_3igcse
+board_exams,IGCSE,Cambridge Primary Stage 4 Assessment (Class 4),cambridge_primary_stage_4_assessment_class_4igcse
+board_exams,IGCSE,Cambridge Primary Stage 5 Assessment (Class 5),cambridge_primary_stage_5_assessment_class_5igcse
+board_exams,KA_1_6,Karnataka Board Class 1 Examination,karnataka_board_class_1_examinationka16
+board_exams,KA_1_6,Karnataka Board Class 2 Examination,karnataka_board_class_2_examinationka16
+board_exams,KA_1_6,Karnataka Board Class 3 Examination,karnataka_board_class_3_examinationka16
+board_exams,KA_1_6,Karnataka Board Class 4 Examination,karnataka_board_class_4_examinationka16
+board_exams,KA_1_6,Karnataka Board Class 5 Examination,karnataka_board_class_5_examinationka16
+board_exams,KA_1_6,Karnataka Board Class 6 Examination,karnataka_board_class_6_examinationka16
+board_exams,KA_7_12,Karnataka Board Class 10 Annual Examination (SSLC),karnataka_board_class_10_annual_examination_sslcka712
+board_exams,KA_7_12,Karnataka Board Class 11 Annual Examination (PUC),karnataka_board_class_11_annual_examination_pucka712
+board_exams,KA_7_12,Karnataka Board Class 12 Annual Examination (PUC),karnataka_board_class_12_annual_examination_pucka712
+board_exams,KA_7_12,Karnataka Board Class 7 Annual Examination,karnataka_board_class_7_annual_examinationka712
+board_exams,KA_7_12,Karnataka Board Class 8 Annual Examination,karnataka_board_class_8_annual_examinationka712
+board_exams,KA_7_12,Karnataka Board Class 9 Annual Examination,karnataka_board_class_9_annual_examinationka712
+board_exams,MH_1_6,Maharashtra Board Class 1 Annual Examination,maharashtra_board_class_1_annual_examinationmh16
+board_exams,MH_1_6,Maharashtra Board Class 2 Annual Examination,maharashtra_board_class_2_annual_examinationmh16
+board_exams,MH_1_6,Maharashtra Board Class 3 Annual Examination,maharashtra_board_class_3_annual_examinationmh16
+board_exams,MH_1_6,Maharashtra Board Class 4 Annual Examination,maharashtra_board_class_4_annual_examinationmh16
+board_exams,MH_1_6,Maharashtra Board Class 5 Annual Examination,maharashtra_board_class_5_annual_examinationmh16
+board_exams,MH_1_6,Maharashtra Board Class 6 Annual Examination,maharashtra_board_class_6_annual_examinationmh16
+board_exams,MH_7_12,Maharashtra State Board Class 10 Examination,maharashtra_state_board_class_10_examinationmh712
+board_exams,MH_7_12,Maharashtra State Board Class 11 Examination,maharashtra_state_board_class_11_examinationmh712
+board_exams,MH_7_12,Maharashtra State Board Class 12 Examination,maharashtra_state_board_class_12_examinationmh712
+board_exams,MH_7_12,Maharashtra State Board Class 7 Examination,maharashtra_state_board_class_7_examinationmh712
+board_exams,MH_7_12,Maharashtra State Board Class 8 Examination,maharashtra_state_board_class_8_examinationmh712
+board_exams,MH_7_12,Maharashtra State Board Class 9 Examination,maharashtra_state_board_class_9_examinationmh712
+board_exams,NIOS,NIOS Class 1 Examination,nios_class_1_examinationnios
+board_exams,NIOS,NIOS Class 2 Examination,nios_class_2_examinationnios
+board_exams,NIOS,NIOS Class 3 Examination,nios_class_3_examinationnios
+board_exams,NIOS,NIOS Class 4 Examination,nios_class_4_examinationnios
+board_exams,NIOS,NIOS Class 5 Examination,nios_class_5_examinationnios
+board_exams,NIOS,NIOS Class 6 Examination,nios_class_6_examinationnios
+board_exams,NIOS_1_6,NIOS Class 1 Examination,nios_class_1_examinationnios16
+board_exams,NIOS_1_6,NIOS Class 2 Examination,nios_class_2_examinationnios16
+board_exams,NIOS_1_6,NIOS Class 3 Examination,nios_class_3_examinationnios16
+board_exams,NIOS_1_6,NIOS Class 4 Examination,nios_class_4_examinationnios16
+board_exams,NIOS_1_6,NIOS Class 5 Examination,nios_class_5_examinationnios16
+board_exams,NIOS_1_6,NIOS Class 6 Examination,nios_class_6_examinationnios16
+board_exams,NIOS_7_12,NIOS Class 10 Examination,nios_class_10_examinationnios712
+board_exams,NIOS_7_12,NIOS Class 11 Examination,nios_class_11_examinationnios712
+board_exams,NIOS_7_12,NIOS Class 12 Examination,nios_class_12_examinationnios712
+board_exams,NIOS_7_12,NIOS Class 7 Examination,nios_class_7_examinationnios712
+board_exams,NIOS_7_12,NIOS Class 8 Examination,nios_class_8_examinationnios712
+board_exams,NIOS_7_12,NIOS Class 9 Examination,nios_class_9_examinationnios712
+board_exams,TN_1_6,Class 1 Annual Examination,class_1_annual_examinationtn16
+board_exams,TN_1_6,Class 2 Annual Examination,class_2_annual_examinationtn16
+board_exams,TN_1_6,Class 3 Annual Examination,class_3_annual_examinationtn16
+board_exams,TN_1_6,Class 4 Annual Examination,class_4_annual_examinationtn16
+board_exams,TN_1_6,Class 5 Annual Examination,class_5_annual_examinationtn16
+board_exams,TN_1_6,Class 6 Annual Examination,class_6_annual_examinationtn16
+board_exams,TN_7_12,TN Board Class 10 Examination,tn_board_class_10_examinationtn712
+board_exams,TN_7_12,TN Board Class 11 Examination,tn_board_class_11_examinationtn712
+board_exams,TN_7_12,TN Board Class 12 Examination,tn_board_class_12_examinationtn712
+board_exams,TN_7_12,TN Board Class 7 Examination,tn_board_class_7_examinationtn712
+board_exams,TN_7_12,TN Board Class 8 Examination,tn_board_class_8_examinationtn712
+board_exams,TN_7_12,TN Board Class 9 Examination,tn_board_class_9_examinationtn712
+board_exams,UP_1_6,UP Board Class 1 Examination,up_board_class_1_examinationup16
+board_exams,UP_1_6,UP Board Class 2 Examination,up_board_class_2_examinationup16
+board_exams,UP_1_6,UP Board Class 3 Examination,up_board_class_3_examinationup16
+board_exams,UP_1_6,UP Board Class 4 Examination,up_board_class_4_examinationup16
+board_exams,UP_1_6,UP Board Class 5 Examination,up_board_class_5_examinationup16
+board_exams,UP_1_6,UP Board Class 6 Examination,up_board_class_6_examinationup16
+board_exams,UP_7_12,UP Board Class 10 Examination,up_board_class_10_examinationup712
+board_exams,UP_7_12,UP Board Class 11 Examination,up_board_class_11_examinationup712
+board_exams,UP_7_12,UP Board Class 12 Examination,up_board_class_12_examinationup712
+board_exams,UP_7_12,UP Board Class 7 Examination,up_board_class_7_examinationup712
+board_exams,UP_7_12,UP Board Class 8 Examination,up_board_class_8_examinationup712
+board_exams,UP_7_12,UP Board Class 9 Examination,up_board_class_9_examinationup712
+board_exams,state_AP,Andhra Pradesh Board Class 1 Examination,andhra_pradesh_board_class_1_examinationstateap
+board_exams,state_AP,Andhra Pradesh Board Class 2 Examination,andhra_pradesh_board_class_2_examinationstateap
+board_exams,state_AP,Andhra Pradesh Board Class 3 Examination,andhra_pradesh_board_class_3_examinationstateap
+board_exams,state_AP,Andhra Pradesh Board Class 4 Examination,andhra_pradesh_board_class_4_examinationstateap
+board_exams,state_AP,Andhra Pradesh Board Class 5 Examination,andhra_pradesh_board_class_5_examinationstateap
+board_exams,state_AP,Andhra Pradesh Board Class 6 Examination,andhra_pradesh_board_class_6_examinationstateap
+board_exams,state_AP,Andhra Pradesh Primary School Class 1 Internal Assessment,andhra_pradesh_primary_school_class_1_internal_ass
+board_exams,state_AP,Andhra Pradesh Primary School Class 5 Assessment,andhra_pradesh_primary_school_class_5_assessmentst
+board_exams,state_KA,Karnataka Board Class 1 Examination,karnataka_board_class_1_examinationstateka
+board_exams,state_KA,Karnataka Board Class 2 Examination,karnataka_board_class_2_examinationstateka
+board_exams,state_KA,Karnataka Board Class 3 Examination,karnataka_board_class_3_examinationstateka
+board_exams,state_KA,Karnataka Board Class 4 Examination,karnataka_board_class_4_examinationstateka
+board_exams,state_KA,Karnataka Board Class 5 Examination,karnataka_board_class_5_examinationstateka
+board_exams,state_KA,Karnataka Board Class 6 Examination,karnataka_board_class_6_examinationstateka
+board_exams,state_MH,Maharashtra Higher Secondary Certificate Examination,maharashtra_higher_secondary_certificate_examinati
+board_exams,state_MH,Maharashtra Secondary School Certificate Examination,maharashtra_secondary_school_certificate_examinati
+board_exams,state_MH,Maharashtra State Board Class 1 Examination,maharashtra_state_board_class_1_examinationstatemh
+board_exams,state_MH,Maharashtra State Board Class 2 Examination,maharashtra_state_board_class_2_examinationstatemh
+board_exams,state_MH,Maharashtra State Board Class 3 Examination,maharashtra_state_board_class_3_examinationstatemh
+board_exams,state_MH,Maharashtra State Board Class 4 Examination,maharashtra_state_board_class_4_examinationstatemh
+board_exams,state_MH,Maharashtra State Board Class 5 Examination,maharashtra_state_board_class_5_examinationstatemh
+board_exams,state_MH,Maharashtra State Board Class 6 Examination,maharashtra_state_board_class_6_examinationstatemh
+board_exams,state_TN,Tamil Nadu State Board Class 1 Examination,tamil_nadu_state_board_class_1_examinationstatetn
+board_exams,state_TN,Tamil Nadu State Board Class 2 Examination,tamil_nadu_state_board_class_2_examinationstatetn
+board_exams,state_TN,Tamil Nadu State Board Class 3 Examination,tamil_nadu_state_board_class_3_examinationstatetn
+board_exams,state_TN,Tamil Nadu State Board Class 4 Examination,tamil_nadu_state_board_class_4_examinationstatetn
+board_exams,state_TN,Tamil Nadu State Board Class 5 Examination,tamil_nadu_state_board_class_5_examinationstatetn
+board_exams,state_TN,Tamil Nadu State Board Class 6 Examination,tamil_nadu_state_board_class_6_examinationstatetn
+board_exams,state_UP,UP Board Class 1 Examination,class_1_examinationstateup
+board_exams,state_UP,UP Board Class 2 Examination,class_2_examinationstateup
+board_exams,state_UP,UP Board Class 3 Examination,class_3_examinationstateup
+board_exams,state_UP,UP Board Class 4 Examination,class_4_examinationstateup
+board_exams,state_UP,UP Board Class 5 Examination,class_5_examinationstateup
+board_exams,state_UP,UP Board Class 6 Examination,class_6_examinationstateup
+board_exams,state_UP,Uttar Pradesh Board Class I Internal Assessment 2024,uttar_pradesh_board_class_i_internal_assessment_20
+board_exams,state_UP,Uttar Pradesh Board Class VIII Board Examination 2024,uttar_pradesh_board_class_viii_board_examination_2
+board_exams,state_UP,Uttar Pradesh Board Class X Final Examination 2024,uttar_pradesh_board_class_x_final_examination_2024
+board_exams,state_UP,Uttar Pradesh Board Class XII Final Examination 2024,uttar_pradesh_board_class_xii_final_examination_20
+board_exams,state_UP,Uttar Pradesh Madhyamik Shiksha Parishad Class 10 Board Examination,uttar_pradesh_madhyamik_shiksha_parishad_class_10_
+board_exams,state_UP,Uttar Pradesh Madhyamik Shiksha Parishad Class 12 Board Examination,uttar_pradesh_madhyamik_shiksha_parishad_class_12_
+central_govt_jobs,IBPS_PO,IBPS PO Main Examination,ibps_po_main_examinationibpspo
+central_govt_jobs,IBPS_PO,IBPS PO Preliminary Examination,ibps_po_preliminary_examinationibpspo
+central_govt_jobs,SSC_CGL,Combined Graduate Level Examination,combined_graduate_level_examinationssccgl
+central_govt_jobs,UPSC_CSE,Civil Services Examination Mains,civil_services_examination_mainsupsccse
+central_govt_jobs,UPSC_CSE,Civil Services Examination Prelims,civil_services_examination_prelimsupsccse
+college_entrance,defence,National Defence Academy & Naval Academy Exam,nda_na
+college_entrance,engineering,Joint Entrance Examination Advanced,jee_advanced
+college_entrance,engineering,Joint Entrance Examination Main,jee_main
+college_entrance,engineering_pg,Graduate Aptitude Test in Engineering,gate
+college_entrance,general,Common University Entrance Test - Undergraduate,cuet_ug
+college_entrance,law,All India Law Entrance Test,ailet
+college_entrance,law,Common Law Admission Test,clat
+college_entrance,management,Integrated Programme in Management Aptitude Test,ipmat
+college_entrance,medical,National Eligibility cum Entrance Test - Undergraduate,neet_ug
+college_entrance,science,IISER Aptitude Test,iiser_iat
+college_entrance,science_pg,Joint Admission Test for M.Sc.,iit_jam
+company_exams,Infosys,Infosys InfyTQ Certification Exam,infosys_infytq_certification_examinfosys
+company_exams,TCS,TCS National Qualifier Test (NQT),tcs_national_qualifier_test_nqttcs
+design_entrance,architecture,National Aptitude Test in Architecture,nata
+design_entrance,design,NID Design Aptitude Test,nid_dat
+design_entrance,design,Undergraduate Common Entrance Examination for Design,uceed
+design_entrance,fashion,NIFT Entrance Exam,nift
+govt_entrance,banking,IBPS Probationary Officer,ibps_po
+govt_entrance,central_govt,SSC Combined Graduate Level,ssc_cgl
+govt_entrance,civil_services,UPSC Civil Services Examination,upsc_cse
+govt_entrance,state_govt,TNPSC Group 1 Services,tnpsc_group1
+language_foreign,GRE,Graduate Record Examination General Test,graduate_record_examination_general_testgre
+language_foreign,IELTS,International English Language Testing System (IELTS) Academic,international_english_language_testing_system_ielts_academicielts
+language_foreign,IELTS,International English Language Testing System (IELTS) General Training,international_english_language_testing_system_ielts_general_trainingielts
+manual,AP_1_6,APPSC Group 1 Services Preliminary Examination,appsc_group_1_services_preliminary_examinationap16
+manual,CBSE,All India Secondary School Examination (AISSE) - Class 10,all_india_secondary_school_examination_aisse_class_10cbse
+manual,CBSE,All India Senior School Certificate Examination (AISSCE) - Class 12,all_india_senior_school_certificate_examination_aissce_class_12cbse
+manual,CBSE,Central Teacher Eligibility Test (CTET),central_teacher_eligibility_test_ctetcbse
+military,Agniveer,Agniveer (General Duty) - Indian Army,agniveer_general_duty_indian_armyagniveer
+military,Agniveer,Agniveer (SSR) - Indian Navy,agniveer_ssr_indian_navyagniveer
+military,Agniveer,Agniveer (Vayu) - Indian Air Force,agniveer_vayu_indian_air_forceagniveer
+military,NDA,National Defence Academy (NDA) Examination,national_defence_academy_nda_examinationnda
+nep_parakh,PARAKH,National Achievement Survey (NAS),national_achievement_survey_nasparakh
+pg_entrance,CAT,Common Admission Test,common_admission_testcat
+pg_entrance,CUET_PG,Common University Entrance Test (Postgraduate),common_university_entrance_test_postgraduatecuetpg
+pg_entrance,GATE,Graduate Aptitude Test in Engineering (GATE) - Civil Engineering,graduate_aptitude_test_in_engineering_gate_civil_engineeringgate
+pg_entrance,GATE,Graduate Aptitude Test in Engineering (GATE) - Computer Science and Engineering,graduate_aptitude_test_in_engineering_gate_computer_science_and_engineeringgate
+pg_entrance,GATE,Graduate Aptitude Test in Engineering (GATE) - Electrical Engineering,graduate_aptitude_test_in_engineering_gate_electrical_engineeringgate
+pg_entrance,GATE,Graduate Aptitude Test in Engineering (GATE) - Electronics and Communication Engineering,graduate_aptitude_test_in_engineering_gate_electronics_and_communication_enginee
+pg_entrance,GATE,Graduate Aptitude Test in Engineering (GATE) - Mechanical Engineering,graduate_aptitude_test_in_engineering_gate_mechanical_engineeringgate
+pg_entrance,MBA_Variants,Common Management Admission Test,common_management_admission_testmbavariants
+pg_entrance,MBA_Variants,Management Aptitude Test,management_aptitude_testmbavariants
+pg_entrance,MBA_Variants,NMAT by GMAC,nmat_by_gmacmbavariants
+pg_entrance,MBA_Variants,Symbiosis National Aptitude Test,symbiosis_national_aptitude_testmbavariants
+pg_entrance,MBA_Variants,Xavier Aptitude Test,xavier_aptitude_testmbavariants
+phd_entrance,CSIR_NET,CSIR UGC NET (National Eligibility Test) for Junior Research Fellowship and Lectureship,csir_ugc_net_national_eligibility_test_for_junior_research_fellowship_and_lectur
+phd_entrance,UGC_NET,University Grants Commission National Eligibility Test,university_grants_commission_national_eligibility_testugcnet
+professional,CA,CA Final Examination,ca_final_examinationca
+professional,CA,CA Foundation Examination,ca_foundation_examinationca
+professional,CA,CA Intermediate Examination,ca_intermediate_examinationca
+professional,CS,CS Executive Programme,cs_executive_programmecs
+professional,CS,CS Professional Programme,cs_professional_programmecs
+professional,finance,CA Foundation,ca_foundation
+professional,law,Company Secretary Executive Entrance Test,cseet
+scholarship,KVPY,Kishore Vaigyanik Protsahan Yojana,kishore_vaigyanik_protsahan_yojanakvpy
+scholarship,KVPY,Kishore Vaigyanik Protsahan Yojana (KVPY) Stream SA,kishore_vaigyanik_protsahan_yojana_kvpy_stream_sakvpy
+scholarship,KVPY,Kishore Vaigyanik Protsahan Yojana (KVPY) Stream SB,kishore_vaigyanik_protsahan_yojana_kvpy_stream_sbkvpy
+scholarship,KVPY,Kishore Vaigyanik Protsahan Yojana (KVPY) Stream SX,kishore_vaigyanik_protsahan_yojana_kvpy_stream_sxkvpy
+scholarship,NMMS,National Means-cum-Merit Scholarship (NMMS) Examination,national_meanscummerit_scholarship_nmms_examinationnmms
+scholarship,NTSE,National Talent Search Examination - Stage 1 (Preliminary),national_talent_search_examination_stage_1_preliminaryntse
+scholarship,NTSE,National Talent Search Examination - Stage 2 (Mains),national_talent_search_examination_stage_2_mainsntse
+scholarship,NTSE,National Talent Search Examination Stage 1,national_talent_search_examination_stage_1ntse
+scholarship,NTSE,National Talent Search Examination Stage 2,national_talent_search_examination_stage_2ntse
+scholarship,SOF_Olympiads,International English Olympiad (IEO),international_english_olympiad_ieosofolympiads
+scholarship,SOF_Olympiads,International Mathematics Olympiad (IMO),international_mathematics_olympiad_imosofolympiads
+scholarship,SOF_Olympiads,National Science Olympiad (NSO),national_science_olympiad_nsosofolympiads
+school,diagnostic,National Level Science Talent Search Examination,nstse
+school,govt_entrance,All India Sainik School Entrance Exam,aissee
+school,govt_entrance,Jawahar Navodaya Vidyalaya Selection Test,jnvst
+school,govt_entrance,Rashtriya Indian Military College Entrance,rimc
+school,national_scholarship,National Means-cum-Merit Scholarship,nmms
+school,national_scholarship,National Talent Search Examination,ntse
+school,olympiad,Humming Bird Olympiads (HMO/HSO),humming_bird
+school,olympiad,Indian Olympiad Qualifier in Mathematics,ioqm
+school,olympiad,Indian School Talent Search Exam,istse
+school,olympiad,Indian Talent Olympiad,ito
+school,olympiad,International Informatics Olympiad,silverzone_iio
+school,olympiad,International Mathematics Olympiad,sof_imo
+school,olympiad,International Olympiad of Mathematics,silverzone_iom
+school,olympiad,International Olympiad of Science,silverzone_ios
+school,olympiad,LogIQids Logical Reasoning Olympiad,logiqids
+school,olympiad,National Science Olympiad,sof_nso
+school,scholarship,All India Scholarship Test Exam,aiste
+school_entrance,Navodaya,Jawahar Navodaya Vidyalaya Selection Test (Class 6),jawahar_navodaya_vidyalaya_selection_test_class_6navodaya
+school_entrance,Navodaya,Jawahar Navodaya Vidyalaya Selection Test (Class 9),jawahar_navodaya_vidyalaya_selection_test_class_9navodaya
+school_entrance,Sainik_School,All India Sainik Schools Entrance Examination (AISSEE) for Class 6,all_india_sainik_schools_entrance_examination_aissee_for_class_6sainikschool
+school_entrance,Sainik_School,All India Sainik Schools Entrance Examination (AISSEE) for Class 9,all_india_sainik_schools_entrance_examination_aissee_for_class_9sainikschool
+skill_vocational,ITI,ITI Electrician Trade Examination,iti_electrician_trade_examinationiti
+skill_vocational,ITI,ITI Fitter Trade Examination,iti_fitter_trade_examinationiti
+skill_vocational,ITI,ITI Welder Trade Examination,iti_welder_trade_examinationiti
+state_psc,TNPSC,TNPSC Group 1 Services Examination,tnpsc_group_1_services_examinationtnpsc
+state_psc,TNPSC,TNPSC Group 2 Services Examination,tnpsc_group_2_services_examinationtnpsc
+state_psc,TNPSC,TNPSC Group 4 Services Examination,tnpsc_group_4_services_examinationtnpsc
+state_psc,UPPSC,UPPSC PCS Main Examination,uppsc_pcs_main_examinationuppsc
+state_psc,UPPSC,UPPSC PCS Preliminary Examination,uppsc_pcs_preliminary_examinationuppsc
+state_scholarship,merit,Chief Minister Merit Scholarship Scheme,jh_cmmss
+state_scholarship,primary,Kerala Lower Secondary Scholarship (CM Kids),kl_lss
+state_scholarship,primary,Maharashtra Pre-Upper-Primary Scholarship Exam,mh_pup
+state_scholarship,secondary,Kerala Upper Secondary Scholarship (CM Kids),kl_uss
+state_scholarship,secondary,Maharashtra Pre-Secondary Scholarship Exam,mh_pss
+state_scholarship,talent_search,Goa Science Talent Search Examination,ga_stse
+state_scholarship,talent_search,Mukhyamantri Gyan Sadhana Merit Scholarship,gj_gyan_sadhana
+state_scholarship,talent_search,Mukhyamantri Vigyan Pratibha Pariksha,dl_mvpp
+state_scholarship,talent_search,Pathani Samanta Mathematics Talent Scholarship,or_pmst
+state_scholarship,talent_search,Rajasthan State Talent Search Examination,rj_stse
+state_scholarship,talent_search,Rural Students Talent Search Examination,tn_trust
+state_scholarship,talent_search,TN Chief Minister's Talent Search Examination,tn_tncmtse
+state_scholarship,tribal,Meghalaya Tribal Students Talent Search Exam,ml_tribal_stse
+tech_certifications,AWS,AWS Certified Cloud Practitioner,aws_certified_cloud_practitioneraws
+tech_certifications,AWS,AWS Certified Solutions Architect – Associate,aws_certified_solutions_architect_associateaws
+tech_certifications,Azure,Microsoft Azure Administrator Associate,microsoft_azure_administrator_associateazure
+tech_certifications,Azure,Microsoft Azure Fundamentals,microsoft_azure_fundamentalsazure
+ug_entrance_engineering,BITSAT,BITS Admission Test (BITSAT),bits_admission_test_bitsatbitsat
+ug_entrance_engineering,BITSAT,Birla Institute of Technology and Science Admission Test (BITSAT),birla_institute_of_technology_and_science_admission_test_bitsatbitsat
+ug_entrance_engineering,JEE_Advanced,JEE Advanced,jee_advancedjeeadvanced
+ug_entrance_engineering,JEE_Advanced,Joint Entrance Examination Advanced,joint_entrance_examination_advancedjeeadvanced
+ug_entrance_engineering,JEE_Main,JEE Main – Paper 1 (B.E./B.Tech),jee_main_paper_1_bebtechjeemain
+ug_entrance_engineering,JEE_Main,JEE Main – Paper 2 (B.Arch/B.Planning),jee_main_paper_2_barchbplanningjeemain
+ug_entrance_engineering,JEE_Main,Joint Entrance Examination Main,joint_entrance_examination_mainjeemain
+ug_entrance_medical,AYUSH,AACCC AYUSH UG Entrance Examination,aaccc_ayush_ug_entrance_examinationayush
+ug_entrance_medical,NEET_UG,National Eligibility cum Entrance Test (NEET) - Undergraduate,national_eligibility_cum_entrance_test_neet_undergraduateneetug
+ug_entrance_medical,NEET_UG,National Eligibility cum Entrance Test (Undergraduate),national_eligibility_cum_entrance_test_undergraduateneetug
+ug_entrance_medical,Nursing,AIIMS B.Sc (Hons) Nursing Entrance Examination,aiims_bsc_hons_nursing_entrance_examinationnursing
+ug_entrance_other,CLAT,Common Law Admission Test (CLAT) UG,common_law_admission_test_clat_ugclat
+ug_entrance_other,CUET_UG,Common University Entrance Test (CUET) UG - Biology,common_university_entrance_test_cuet_ug_biologycuetug
+ug_entrance_other,CUET_UG,Common University Entrance Test (CUET) UG - Chemistry,common_university_entrance_test_cuet_ug_chemistrycuetug
+ug_entrance_other,CUET_UG,Common University Entrance Test (CUET) UG - English,common_university_entrance_test_cuet_ug_englishcuetug
+ug_entrance_other,CUET_UG,Common University Entrance Test (CUET) UG - Mathematics,common_university_entrance_test_cuet_ug_mathematicscuetug
+ug_entrance_other,CUET_UG,Common University Entrance Test (CUET) UG - Physics,common_university_entrance_test_cuet_ug_physicscuetug

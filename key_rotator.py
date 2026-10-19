@@ -46,7 +46,7 @@ class KeyPool:
                     break
 
 class RotatingKeyManager:
-    TASK_PROVIDER_MAP = {"bulk_generate": "groq", "detail_generate": "groq", "validate": "gemini"}
+    TASK_PROVIDER_MAP = {"bulk_generate": "nvidia", "detail_generate": "nvidia", "validate": "gemini"}
     
     def __init__(self):
         self.pools = {

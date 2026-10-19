@@ -16,3 +16,5 @@ keepalive.log
 # Output
 output/
 pending_review.jsonl
+.env.save
+.env.*

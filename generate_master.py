@@ -2,7 +2,9 @@
 TryIT Question Engine v3 - ULTIMATE MULTI-PROVIDER
 Loads 29 generation keys across 7 providers.
 """
+import os
 import os, json, time, uuid, re, itertools, random, threading
+from entity_engine import get_context
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
@@ -11,6 +13,10 @@ from openai import OpenAI
 from google import genai
 import json_repair
 from key_pool import get_pool
+from diagram_mapping import DIAGRAM_KIND_BY_TOPIC_ID
+from svg_sanitizer import sanitize_question_svgs
+# Note: Validators for biology/physics are structural for now, but they ensure no empty SVGs are saved.
+
 
 load_dotenv(dotenv_path=".env")
 s = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
@@ -82,10 +88,13 @@ TARGET_L6_L10 = 500
 QUALITY_THRESHOLD = 9
 CONCURRENT_WORKERS = 5
 
-COPYRIGHT_RULES = """
+def get_dynamic_rules():
+    context = get_context()
+    return f"""
 CRITICAL: Generate 100% ORIGINAL questions.
 - Never reproduce, paraphrase, or reword any real exam question.
-- Use completely new scenarios, numbers, names, settings.
+- {context}
+- Do NOT use 'A, B, C' or generic variables. Use the names and locations provided above.
 """
 
 _pattern_cache = {}
@@ -126,19 +135,36 @@ def extract_json_array(text):
 
 def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
     pattern_str, _ = get_pyq_context(topic_id)
+    diagram_kind = DIAGRAM_KIND_BY_TOPIC_ID.get(topic_id)
+    diagram_instruction = ""
+    if diagram_kind:
+        diagram_instruction = f'''
+        THIS QUESTION REQUIRES A DIAGRAM: You must include a "diagram_svg" (or equivalent) field in your JSON output.
+        Diagram Type Required: {diagram_kind}. Ensure the SVG is valid XML and matches the question logic.
+        '''
     exam_str = ', '.join(exam_tags[:6]) if exam_tags else 'Indian competitive exams'
-    prompt = f"""You are an expert MCQ writer.
+    prompt = f"""You are an expert MCQ writer for Indian competitive exams.
 TOPIC: {topic_name}
 SUBJECT: {subject_id}
 DIFFICULTY LEVEL: {level}/10
 TARGET EXAMS: {exam_str}
 COUNT: {count} questions
 {pattern_str}
-{COPYRIGHT_RULES}
+{diagram_instruction}
+{get_dynamic_rules()}
+
 Return ONLY raw JSON array. Start with [ end with ]. No thinking, no markdown.
-Each object has: question, options (4 strings), correct_answer (0-3),
-why_correct, why_wrong_option_b, why_wrong_option_c, why_wrong_option_d,
-story_explanation, shortcut_tips, cross_exam_intelligence
+Each object must have exactly these fields:
+- question: The question text.
+- options: Array of 4 strings.
+- correct_answer: Integer (0-3).
+- why_correct: Step-by-step logic for the correct answer.
+- why_wrong_option_b: Explain the misconception that leads to option B.
+- why_wrong_option_c: Explain the misconception that leads to option C.
+- why_wrong_option_d: Explain the misconception that leads to option D.
+- story_explanation: Create a RELATABLE, CONVERSATIONAL STORY using everyday Indian characters (e.g., Ramu, Priya, a local shopkeeper, a cricket team). Do NOT just explain the theory. Tell a quick anecdote where this concept naturally applies so a student remembers it forever.
+- shortcut_tips: A real mnemonic or topper's trick to solve this in 10 seconds.
+- cross_exam_intelligence: Name the SPECIFIC EXAMS this exact question type appears in (e.g., 'UPSC Prelims, SSC CGL Tier 1, RRB NTPC, State PSCs') and what angle they test. Do not give generic advice.
 """
     providers = [
         (NVIDIA_POOL, NVIDIA_CLIENTS), 
@@ -207,6 +233,10 @@ Return ONLY JSON: {{"passed": true, "score": 9, "reason": "..."}}"""
         return False, 0, err[:50]
 
 def save(q, topic_id, subject_id, level, score, exam_tags):
+    # Sanitize any SVGs if the topic requires a diagram
+    diagram_kind = DIAGRAM_KIND_BY_TOPIC_ID.get(topic_id)
+    if diagram_kind:
+        q = sanitize_question_svgs(q, diagram_kind)
     rec = {
         "id": f"q_{uuid.uuid4().hex[:16]}", "topic_id": topic_id, "subject_id": subject_id, "level": level,
         "difficulty": "Easy" if level <= 3 else "Medium" if level <= 6 else "Hard" if level <= 8 else "Expert",
