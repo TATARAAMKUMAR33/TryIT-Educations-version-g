@@ -66,6 +66,6 @@ jobs:
           MSG=$(printf '%s *Exam Generator %s*\n\n%s' "$EMOJI" "$TITLE" "$REPORT")
           curl -S --fail-with-body -X POST \
             "https://api.telegram.org/bot${{ secrets.TELEGRAM_EXAM_BOT_TOKEN }}/sendMessage" \
-            -F chat_id="${{ secrets.TELEGRAM_EXAM_CHAT_ID }}" \
-            -F parse_mode="Markdown" \
+            --data-urlencode "chat_id=${{ secrets.TELEGRAM_EXAM_CHAT_ID }}" \
+            --data-urlencode "parse_mode=Markdown" \
             --data-urlencode "text=${MSG}"
