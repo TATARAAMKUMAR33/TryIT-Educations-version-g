@@ -291,7 +291,7 @@ def process_queue_item(item: dict, dry_run: bool = False) -> dict:
 
     print(f"\n{'─'*60}")
     print(f"  📚 Phase {phase} | {category} → {subcategory}")
-    print(f"  {item['desc']}")
+    print(f"  {item.get('desc', 'Generating exams...')}")
     print(f"{'─'*60}")
 
     stats = {
@@ -371,7 +371,7 @@ def process_queue_item(item: dict, dry_run: bool = False) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="TryIT Exam Database Generator")
-    parser.add_argument("--phase",       type=int,  help="Run only this phase number")
+    parser.add_argument("--phase",       type=str,  help="Run only this phase e.g. 1a, 1b, 2, 3")
     parser.add_argument("--category",    type=str,  help="Run only this category")
     parser.add_argument("--subcategory", type=str,  help="Run only this subcategory")
     parser.add_argument("--resume",      action="store_true", help="Resume from last checkpoint")
@@ -394,11 +394,38 @@ def main():
 
     # Build work queue
     if args.phase:
-        queue = [q for q in GENERATION_QUEUE if q["phase"] == args.phase]
+        # Handle both int and string phases (1a, 1b, 2, 3...)
+        phase_str = str(args.phase)
+        queue = [q for q in GENERATION_QUEUE if str(q["phase"]) == phase_str]
     elif args.category:
         queue = [q for q in GENERATION_QUEUE if q["category"] == args.category]
     elif args.subcategory:
         queue = [q for q in GENERATION_QUEUE if q["subcategory"] == args.subcategory]
+        # If no exact match, try case-insensitive
+        if not queue:
+            queue = [q for q in GENERATION_QUEUE if q["subcategory"].lower() == args.subcategory.lower()]
+        # If still no match, create a dynamic entry with proper desc from master list
+        if not queue:
+            # Try to get description from audit_and_fix master list
+            try:
+                import importlib.util, sys, os
+                spec = importlib.util.spec_from_file_location("audit", "audit_and_fix.py")
+                audit = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(audit)
+                master = audit.MASTER_EXAM_LIST
+                info = master.get(args.subcategory, {})
+                desc = info.get("desc", args.subcategory)
+                category = info.get("category", "manual")
+            except Exception:
+                desc = args.subcategory
+                category = "manual"
+            print(f"⚠️  '{args.subcategory}' not in queue — creating dynamic entry: {desc}")
+            queue = [{
+                "phase": 99,
+                "category": category,
+                "subcategory": args.subcategory,
+                "desc": desc
+            }]
     else:
         queue = GENERATION_QUEUE
 
