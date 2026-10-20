@@ -30,6 +30,7 @@ groq_keys = [k for k in groq_keys if k]
 MODELS = ["openai/gpt-oss-20b", "llama-3.1-8b-instant", "meta-llama/llama-4-scout-17b-16e-instruct"]
 
 def call_groq(prompt):
+    # Try all keys/models instantly. Only sleep if ALL 15 combinations fail.
     for key in groq_keys:
         for model in MODELS:
             try:
@@ -40,10 +41,11 @@ def call_groq(prompt):
                 )
                 return chat_completion.choices[0].message.content, model
             except Exception as e:
-                if "429" in str(e):
-                    print("  ⏳ Rate limit hit, waiting 15s...")
-                    time.sleep(15)
-                continue
+                continue # Move to next key/model instantly
+    
+    # If we get here, all keys and models are rate-limited.
+    print("  ⏳ All keys exhausted. Waiting 30s to reset...")
+    time.sleep(30)
     return None, None
 
 # --- GEMINI CONFIG ---
