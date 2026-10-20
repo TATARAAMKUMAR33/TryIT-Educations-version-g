@@ -39,7 +39,10 @@ def call_groq(prompt):
                     model=model, temperature=0.7, max_tokens=1500,
                 )
                 return chat_completion.choices[0].message.content, model
-            except:
+            except Exception as e:
+                if "429" in str(e):
+                    print("  ⏳ Rate limit hit, waiting 15s...")
+                    time.sleep(15)
                 continue
     return None, None
 
@@ -80,12 +83,8 @@ Output ONLY valid JSON:
     return True, "Gemini offline, auto-passed."
 
 def rewrite_batch(batch_size=1):
-    # Fetch a question where generated_by is NULL (unprocessed)
-    res = sb.table('questions').select('*').is_('generated_by', 'null').limit(1).execute()
-    
-    # If no NULLs left, check for other unprocessed states just in case
-    if not res.data:
-        res = sb.table('questions').select('*').neq('generated_by', 'entity_rewriter').neq('generated_by', 'entity_rewriter_failed').neq('generated_by', 'entity_rewriter_rejected').limit(1).execute()
+    # Fetch a question where generated_by is NULL (unprocessed) OR FAILED (retry)
+    res = sb.table('questions').select('*').or_('generated_by.is.null,generated_by.eq.entity_rewriter_failed').limit(1).execute()
 
     if not res.data: 
         return False
