@@ -24,13 +24,13 @@ def send_telegram(msg):
         requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage", data={"chat_id": TG_CHAT, "text": msg}, timeout=10)
     except: pass
 
-# --- GROQ CONFIG ---
+# --- GROQ CONFIG (INSTANT ROTATION) ---
 groq_keys = [env.get(f"GROQ_API_KEY_{i}") for i in range(1, 6)]
 groq_keys = [k for k in groq_keys if k]
 MODELS = ["openai/gpt-oss-20b", "llama-3.1-8b-instant", "meta-llama/llama-4-scout-17b-16e-instruct"]
 
 def call_groq(prompt):
-    # Try all keys/models instantly. Only sleep if ALL 15 combinations fail.
+    # Try all 15 combinations instantly
     for key in groq_keys:
         for model in MODELS:
             try:
@@ -41,9 +41,9 @@ def call_groq(prompt):
                 )
                 return chat_completion.choices[0].message.content, model
             except Exception as e:
-                continue # Move to next key/model instantly
+                continue # Move instantly to the next key/model
     
-    # If we get here, all keys and models are rate-limited.
+    # If we get here, all keys and models are exhausted
     print("  ⏳ All keys exhausted. Waiting 30s to reset...")
     time.sleep(30)
     return None, None
@@ -85,9 +85,9 @@ Output ONLY valid JSON:
     return True, "Gemini offline, auto-passed."
 
 def rewrite_batch(batch_size=1):
-    # Fetch a question where generated_by is NULL (unprocessed) OR FAILED (retry)
-    res = sb.table('questions').select('*').or_('generated_by.is.null,generated_by.eq.entity_rewriter_failed').limit(1).execute()
-
+    # Fetch a question that is either NULL or FAILED
+    res = sb.table('questions').select('*').or_('generated_by.is.null,generated_by.eq.entity_rewriter_failed').limit(batch_size).execute()
+    
     if not res.data: 
         return False
 
@@ -145,15 +145,15 @@ Output MUST be ONLY a valid JSON object (no markdown). Use double backslashes fo
     return True
 
 if __name__ == "__main__":
-    print("🚀 Starting Verified Auto-Rewriter...")
-    send_telegram("🚀 *Verified Question Rewriter Started!*\nGroq writes, Gemini verifies the Indian context.")
+    print("🚀 Starting Verified Auto-Rewriter (Speed Boosted)...")
+    send_telegram("🚀 *Question Rewriter Started (Speed Boost)*\nProcessing instantly with fallback rotation.")
     
     total = 0
     while True:
         success = rewrite_batch(batch_size=1)
         if not success:
-            print(f"🎉 ALL DONE! Total verified: {total}")
-            send_telegram(f"🎉 *Question Rewriter Finished!*\nTotal verified and saved: {total}")
+            print(f"🎉 ALL DONE! Total verified this run: {total}")
+            send_telegram(f"🎉 *Question Rewriter Finished!*\nTotal verified this run: {total}")
             break
         total += 1
         if total % 10 == 0:
