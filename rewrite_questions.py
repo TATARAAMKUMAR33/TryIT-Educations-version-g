@@ -85,8 +85,8 @@ Output ONLY valid JSON:
     return True, "Gemini offline, auto-passed."
 
 def rewrite_batch(batch_size=1):
-    # Fetch a question that is either NULL or FAILED
-    res = sb.table('questions').select('*').or_('generated_by.is.null,generated_by.eq.entity_rewriter_failed').limit(batch_size).execute()
+    # Fetch a question that is either 'tryit_v2' or FAILED
+    res = sb.table('questions').select('*').or_('generated_by.eq.tryit_v2,generated_by.eq.entity_rewriter_failed').limit(batch_size).execute()
     
     if not res.data: 
         return False
