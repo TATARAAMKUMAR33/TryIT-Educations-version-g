@@ -154,9 +154,42 @@ Output MUST be ONLY a valid JSON object (no markdown). Use double backslashes fo
     time.sleep(1)
     return True
 
+def get_full_status_msg():
+    try:
+        total = sb.table('questions').select('id', count='exact').limit(1).execute().count
+        verified = sb.table('questions').select('id', count='exact').eq('generated_by', 'entity_rewriter').limit(1).execute().count
+        rejected = sb.table('questions').select('id', count='exact').eq('generated_by', 'entity_rewriter_rejected').limit(1).execute().count
+        failed = sb.table('questions').select('id', count='exact').eq('generated_by', 'entity_rewriter_failed').limit(1).execute().count
+        v2 = sb.table('questions').select('id', count='exact').eq('generated_by', 'tryit_v2').limit(1).execute().count
+        v3 = sb.table('questions').select('id', count='exact').eq('generated_by', 'tryit_v3').limit(1).execute().count
+        engine = sb.table('questions').select('id', count='exact').like('generated_by', 'tryit_engine%').limit(1).execute().count
+        
+        remaining = v2 + v3 + engine + failed
+        
+        msg = (
+            "=======================================================\n"
+            "  📊 LIVE SUPABASE DATABASE COUNTS\n"
+            "=======================================================\n"
+            f"Total Questions:     {total}\n"
+            f"✅ Verified:         {verified}\n"
+            f"❌ Rejected:         {rejected}\n"
+            f"⚠️ Failed:           {failed}\n"
+            "---------------------------------\n"
+            f"📦 Unprocessed v2:   {v2}\n"
+            f"📦 Unprocessed v3:   {v3}\n"
+            f"⚙️  Unprocessed eng:  {engine}\n"
+            "---------------------------------\n"
+            f"⏳ TOTAL REMAINING:  {remaining}\n"
+            "======================================================="
+        )
+        return msg
+    except Exception as e:
+        return f"Error fetching status: {e}"
+
 if __name__ == "__main__":
     print("🚀 Starting Verified Auto-Rewriter...")
     send_telegram("🚀 *Question Rewriter Started*\nProcessing with fallback rotation.")
+    send_telegram(get_full_status_msg())  # Send initial status
     
     batch_count = 0
     while True:
@@ -164,14 +197,13 @@ if __name__ == "__main__":
         if not success:
             print(f"🎉 ALL DONE! Total verified this run: {batch_count}")
             send_telegram(f"🎉 *Question Rewriter Finished!*\nTotal verified this run: {batch_count}")
+            send_telegram(get_full_status_msg())  # Send final status
             break
         batch_count += 1
         
-        # Fetch real global count from DB every 10 questions
+        # Send the full dashboard update every 10 questions
         if batch_count % 10 == 0:
-            try:
-                verified_total = sb.table('questions').select('id', count='exact').eq('generated_by', 'entity_rewriter').limit(1).execute().count
-                send_telegram(f"⏳ *Progress Update*\nGlobal Verified in DB: {verified_total} questions.\n(This run: {batch_count})")
-            except:
-                send_telegram(f"⏳ *Progress Update*\nThis run: {batch_count} questions.")
+            send_telegram(get_full_status_msg())
+            
         sys.stdout.flush()
+
