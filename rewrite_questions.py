@@ -155,17 +155,23 @@ Output MUST be ONLY a valid JSON object (no markdown). Use double backslashes fo
     return True
 
 if __name__ == "__main__":
-    print("🚀 Starting Verified Auto-Rewriter (Speed Boosted)...")
-    send_telegram("🚀 *Question Rewriter Started (Speed Boost)*\nProcessing instantly with fallback rotation.")
+    print("🚀 Starting Verified Auto-Rewriter...")
+    send_telegram("🚀 *Question Rewriter Started*\nProcessing with fallback rotation.")
     
-    total = 0
+    batch_count = 0
     while True:
         success = rewrite_batch(batch_size=1)
         if not success:
-            print(f"🎉 ALL DONE! Total verified this run: {total}")
-            send_telegram(f"🎉 *Question Rewriter Finished!*\nTotal verified this run: {total}")
+            print(f"🎉 ALL DONE! Total verified this run: {batch_count}")
+            send_telegram(f"🎉 *Question Rewriter Finished!*\nTotal verified this run: {batch_count}")
             break
-        total += 1
-        if total % 10 == 0:
-            send_telegram(f"⏳ *Progress Update*\nVerified & Saved: {total} questions.")
+        batch_count += 1
+        
+        # Fetch real global count from DB every 10 questions
+        if batch_count % 10 == 0:
+            try:
+                verified_total = sb.table('questions').select('id', count='exact').eq('generated_by', 'entity_rewriter').limit(1).execute().count
+                send_telegram(f"⏳ *Progress Update*\nGlobal Verified in DB: {verified_total} questions.\n(This run: {batch_count})")
+            except:
+                send_telegram(f"⏳ *Progress Update*\nThis run: {batch_count} questions.")
         sys.stdout.flush()
