@@ -30,22 +30,24 @@ groq_keys = [k for k in groq_keys if k]
 MODELS = ["openai/gpt-oss-20b", "llama-3.1-8b-instant", "meta-llama/llama-4-scout-17b-16e-instruct"]
 
 def call_groq(prompt):
-    # Try all 15 combinations instantly
     for key in groq_keys:
-        for model in MODELS:
-            try:
-                client = Groq(api_key=key)
-                chat_completion = client.chat.completions.create(
-                    messages=[{"role": "user", "content": prompt}],
-                    model=model, temperature=0.7, max_tokens=1500,
-                )
-                return chat_completion.choices[0].message.content, model
-            except Exception as e:
-                continue # Move instantly to the next key/model
-    
-    # If we get here, all keys and models are exhausted
-    print("  ⏳ All keys exhausted. Waiting 30s to reset...")
-    time.sleep(30)
+        try:
+            client = Groq(api_key=key)
+            chat_completion = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="openai/gpt-oss-20b", 
+                temperature=0.7, max_tokens=1500,
+            )
+            return chat_completion.choices[0].message.content, "openai/gpt-oss-20b"
+        except Exception as e:
+            if "429" in str(e):
+                print("  ⏳ Rate limit hit. Sleeping 15s to let quota reset...")
+                time.sleep(15)
+            else:
+                print(f"  ⚠️ Error on key: {str(e)[:50]}...")
+                time.sleep(2)
+                
+    print("  🚨 All keys exhausted. Returning None...")
     return None, None
 
 # --- GEMINI CONFIG ---
