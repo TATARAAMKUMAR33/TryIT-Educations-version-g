@@ -153,6 +153,11 @@ COUNT: {count} questions
 {diagram_instruction}
 {get_dynamic_rules()}
 
+CRITICAL RULES:
+1. DO NOT output your thought process, internal monologue, or self-corrections (e.g., never say 'Wait', 'Actually', 'Let me re-evaluate').
+2. FIRST, solve the problem mathematically. THEN, construct the options so the correct answer is exactly among them.
+3. The 'why_correct' field MUST ONLY contain the final, flawless mathematical logic.
+
 Return ONLY raw JSON array. Start with [ end with ]. No thinking, no markdown.
 Each object must have exactly these fields:
 - question: The question text.
@@ -210,11 +215,16 @@ def verify(q, level):
     model = GEMINI_KEY_TO_MODEL[key]
     try:
         client = genai.Client(api_key=key)
-        prompt = f"""Rate this MCQ for difficulty {level}/10.
+        prompt = f"""You are a strict math and logic examiner.
+FIRST: Solve the problem independently.
+SECOND: Check if the provided correct_answer index exactly matches your solved answer.
+THIRD: Check if the explanation contains confused monologue (like 'Wait' or 'Actually').
 Q: {q.get('question','')}
 Options: {q.get('options',[])}
-Correct index: {q.get('correct_answer',0)}
-Return ONLY JSON: {{"passed": true, "score": 9, "reason": "..."}}"""
+Provided correct index: {q.get('correct_answer',0)}
+Provided Explanation: {q.get('why_correct','')}
+
+Return ONLY JSON: {{"passed": true, "score": 9, "reason": "Math matches."}} OR {{"passed": false, "score": 0, "reason": "Math does not match / Monologue detected."}}"""
         r = client.models.generate_content(model=model, contents=prompt)
         txt = re.sub(r'^```json\s*|\s*```$', '', (r.text or '').strip(), flags=re.MULTILINE).strip()
         m = re.search(r'\{.*\}', txt, re.DOTALL)
