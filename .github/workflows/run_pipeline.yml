@@ -69,7 +69,7 @@ jobs:
 
       - name: Run generator
         id: gen
-        run: python3 -u generate_master.py
+        run: timeout 50m python3 -u generate_master.py || true
         continue-on-error: true # If it fails, still send Telegram
         env:
           PYTHONUNBUFFERED: "1"
