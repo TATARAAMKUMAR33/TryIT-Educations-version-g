@@ -49,9 +49,6 @@ def load_all_keys(prefix, max_n=6):
 NVIDIA_KEYS = load_all_keys("NVIDIA_API_KEY", 5)
 GROQ_KEYS = load_all_keys("GROQ_API_KEY", 5)
 SAMBANOVA_KEYS = load_all_keys("SAMBANOVA_API_KEY", 5)
-OPENROUTER_KEYS = load_all_keys("OPENROUTER_API_KEY", 5)
-GH_MODELS_KEYS = load_all_keys("GH_MODELS_TOKEN", 5)
-MISTRAL_KEYS = load_all_keys("MISTRAL_API_KEY", 5)
 OPENAI_KEYS = load_all_keys("OPENAI_API_KEY", 5)
 GEMINI_KEYS = load_all_keys("GEMINI_API_KEY", 6)
 
@@ -59,17 +56,11 @@ GEMINI_KEYS = load_all_keys("GEMINI_API_KEY", 6)
 NVIDIA_CLIENTS = [(k, OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k), "deepseek-ai/deepseek-v4.1-flash") for k in NVIDIA_KEYS]
 GROQ_CLIENTS = [(k, OpenAI(base_url="https://api.groq.com/openai/v1", api_key=k), "openai/gpt-oss-120b") for k in GROQ_KEYS]
 SAMBANOVA_CLIENTS = [(k, OpenAI(base_url="https://api.sambanova.ai/v1", api_key=k), "Meta-Llama-3.3-70B-Instruct") for k in SAMBANOVA_KEYS]
-OPENROUTER_CLIENTS = [(k, OpenAI(base_url="https://openrouter.ai/api/v1", api_key=k), "meta-llama/llama-3.3-70b-instruct:free") for k in OPENROUTER_KEYS]
-GH_MODELS_CLIENTS = [(k, OpenAI(base_url="https://models.inference.ai.azure.com", api_key=k), "gpt-4o-mini") for k in GH_MODELS_KEYS]
-MISTRAL_CLIENTS = [(k, OpenAI(base_url="https://api.mistral.ai/v1", api_key=k), "mistral-large-latest") for k in MISTRAL_KEYS]
 OPENAI_CLIENTS = [(k, OpenAI(base_url="https://api.openai.com/v1", api_key=k), "gpt-4o-mini") for k in OPENAI_KEYS]
 
 NVIDIA_POOL = get_pool("NVIDIA", NVIDIA_KEYS, cooldown_seconds=90)
 GROQ_POOL = get_pool("Groq", GROQ_KEYS, cooldown_seconds=90)
 SAMBANOVA_POOL = get_pool("SambaNova", SAMBANOVA_KEYS, cooldown_seconds=60)
-OPENROUTER_POOL = get_pool("OpenRouter", OPENROUTER_KEYS, cooldown_seconds=90)
-GH_MODELS_POOL = get_pool("GitHub", GH_MODELS_KEYS, cooldown_seconds=60)
-MISTRAL_POOL = get_pool("Mistral", MISTRAL_KEYS, cooldown_seconds=60)
 OPENAI_POOL = get_pool("OpenAI", OPENAI_KEYS, cooldown_seconds=60)
 
 # ── GEMINI SETUP ──
@@ -170,6 +161,7 @@ def call_bedrock(prompt):
         print(f"      ❌ Bedrock Error: {str(e)[:100]}", flush=True)
     return []
 
+# RATE LIMIT ROTATION ENABLED: key_pool.py handles 429s by putting keys on 60s cooldown
 def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
     pattern_str, _ = get_pyq_context(topic_id)
     diagram_kind = DIAGRAM_KIND_BY_TOPIC_ID.get(topic_id)
@@ -216,8 +208,10 @@ Each object must have exactly these fields:
 
     # FALLBACK TO FREE APIS FOR LEVEL < 7 OR IF BEDROCK FAILS
     providers = [
-        (NVIDIA_POOL, NVIDIA_CLIENTS), 
-        (GROQ_POOL, GROQ_CLIENTS)
+        (GROQ_POOL, GROQ_CLIENTS),
+        (NVIDIA_POOL, NVIDIA_CLIENTS),
+        (SAMBANOVA_POOL, SAMBANOVA_CLIENTS),
+        (OPENAI_POOL, OPENAI_CLIENTS)
     ]
     random.shuffle(providers)
     
