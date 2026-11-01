@@ -33,8 +33,8 @@ for row in all_rows:
 
 header = f'📊 <b>TRYIT HOURLY REPORT</b>\n\n'
 header += f'📚 <b>Total Questions:</b> {total}\n'
-header += f'✅ <b>Total Verified:</b> {v3_total}\n'
-header += f'🚀 <b>Generated Today:</b> {v3_today}\n\n'
+header += f'✅ <b>Total Verified (All time):</b> {total}\n'
+header += f'🚀 <b>Generated Today (v3):</b> {v3_today}\n'
 
 lines = [header]
 current_chunk = header
