@@ -12,6 +12,7 @@ from supabase import create_client
 from openai import OpenAI
 from google import genai
 import json_repair
+from backend_engine import safe_db_insert, is_duplicate, extract_json_array_robust, verify_questions_parallel
 from key_pool import get_pool
 from diagram_mapping import DIAGRAM_KIND_BY_TOPIC_ID
 from svg_sanitizer import sanitize_question_svgs
@@ -124,7 +125,8 @@ def get_existing_count(topic_id, level):
         return r.count or 0
     except Exception: return 0
 
-def extract_json_array(text):
+extract_json_array = extract_json_array_robust
+def old_extract_json_array(text):
     if not text: return None
     text = re.sub(r'^```json\s*|\s*```$', '', text.strip(), flags=re.MULTILINE).strip()
     for cand in [text, text[text.find('['):text.rfind(']')+1] if '[' in text else text]:
@@ -295,8 +297,13 @@ def save(q, topic_id, subject_id, level, score, exam_tags):
         "access_tier": "free" if level <= 6 else "pro", "copyright_original": True, "verified": True, "quality_score": score,
         "report_count": 0, "generated_by": "tryit_v3", "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    try: s.table('questions').insert(rec).execute(); return True
-    except Exception: return False
+    # 0 ERROR UPGRADE: Deduplication & Auto-Retry
+    if is_duplicate(s, q["question"], topic_id):
+        print("   ⏭️ Duplicate detected. Skipping to save credits.")
+        return False
+        
+    success, _ = safe_db_insert(s, 'questions', rec)
+    return success
 
 def process_topic_level(topic_id, topic_name, subject_id, level, target, exam_tags):
     existing = get_existing_count(topic_id, level)
