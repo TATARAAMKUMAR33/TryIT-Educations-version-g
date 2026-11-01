@@ -19,7 +19,7 @@ from svg_sanitizer import sanitize_question_svgs
 # Note: Validators for biology/physics are structural for now, but they ensure no empty SVGs are saved.
 
 
-load_dotenv(dotenv_path=".env")
+load_dotenv(dotenv_path=".env", override=True)
 s = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
 
 # --- AWS BEDROCK SETUP ---
