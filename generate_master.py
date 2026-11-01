@@ -12,6 +12,7 @@ from supabase import create_client
 from openai import OpenAI
 from google import genai
 import json_repair
+import boto3
 from key_pool import get_pool
 from diagram_mapping import DIAGRAM_KIND_BY_TOPIC_ID
 from svg_sanitizer import sanitize_question_svgs
@@ -20,6 +21,19 @@ from svg_sanitizer import sanitize_question_svgs
 
 load_dotenv(dotenv_path=".env")
 s = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
+
+# --- AWS BEDROCK SETUP ---
+try:
+    bedrock = boto3.client(
+        service_name='bedrock-runtime',
+        region_name=os.getenv('AWS_REGION', 'us-east-1'),
+        aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
+    )
+except Exception as e:
+    print("AWS Bedrock Init Error:", e)
+    bedrock = None
+
 
 # ── LOAD ALL KEYS ──
 def load_all_keys(prefix, max_n=6):
@@ -133,6 +147,28 @@ def extract_json_array(text):
             except Exception: continue
     return None
 
+
+def call_bedrock(prompt):
+    if not bedrock: return []
+    print("      🧠 Routing to AWS Bedrock (GPT-6 Luna)...", flush=True)
+    try:
+        # Using the Converse API for universal model compatibility
+        response = bedrock.converse(
+            modelId="openai.gpt-6-luna-v1:0", 
+            messages=[{"role": "user", "content": [{"text": prompt}]}],
+            inferenceConfig={"temperature": 0.6, "maxTokens": 4000}
+        )
+        raw = response['output']['message']['content'][0]['text']
+        data = extract_json_array(raw)
+        if data:
+            valid = [q for q in data if (isinstance(q, dict) and q.get('question') and isinstance(q.get('options'), list) and len(q['options']) == 4 and isinstance(q.get('correct_answer'), int) and 0 <= q['correct_answer'] <= 3)]
+            if valid:
+                print(f'      ✅ {len(valid)}/{len(data)} via AWS Bedrock', flush=True)
+                return valid
+    except Exception as e:
+        print(f"      ❌ Bedrock Error: {str(e)[:100]}", flush=True)
+    return []
+
 def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
     pattern_str, _ = get_pyq_context(topic_id)
     diagram_kind = DIAGRAM_KIND_BY_TOPIC_ID.get(topic_id)
@@ -171,6 +207,13 @@ Each object must have exactly these fields:
 - shortcut_tips: A real mnemonic or topper's trick to solve this in 10 seconds.
 - cross_exam_intelligence: Name the SPECIFIC EXAMS this exact question type appears in (e.g., 'UPSC Prelims, SSC CGL Tier 1, RRB NTPC, State PSCs') and what angle they test. Do not give generic advice.
 """
+    # IF LEVEL >= 7, ROUTE TO AWS BEDROCK FOR HIGH-QUALITY REASONING
+    if level >= 7 and bedrock:
+        bedrock_result = call_bedrock(prompt)
+        if bedrock_result:
+            return bedrock_result
+
+    # FALLBACK TO FREE APIS FOR LEVEL < 7 OR IF BEDROCK FAILS
     providers = [
         (NVIDIA_POOL, NVIDIA_CLIENTS), 
         (GROQ_POOL, GROQ_CLIENTS)
