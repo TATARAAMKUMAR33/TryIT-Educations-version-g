@@ -1,3 +1,4 @@
+# VERSION: 2.0 - Force Update
 """
 TryIT Question Engine v3 - ULTIMATE MULTI-PROVIDER
 Loads 29 generation keys across 7 providers.
