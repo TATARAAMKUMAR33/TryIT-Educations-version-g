@@ -6,8 +6,7 @@ Loads 29 generation keys across 7 providers.
 import os
 import os, json, time, uuid, re, itertools, random, threading, sys
 
-GLOBAL_FAIL_COUNT = 0
-MAX_CONSECUTIVE_FAILURES = 10
+FAILURE_TRACKER = {"count": 0, "max": 10}
 from entity_engine import get_context
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -162,7 +161,7 @@ def call_bedrock(prompt):
             valid = [q for q in data if (isinstance(q, dict) and q.get('question') and isinstance(q.get('options'), list) and len(q['options']) == 4 and isinstance(q.get('correct_answer'), int) and 0 <= q['correct_answer'] <= 3)]
             if valid:
                 print(f'      ✅ {len(valid)}/{len(data)} via AWS Bedrock', flush=True)
-                GLOBAL_FAIL_COUNT = 0
+                FAILURE_TRACKER["count"] = 0
                 return valid
     except Exception as e:
         print(f"      ❌ Bedrock Error: {str(e)[:100]}", flush=True)
@@ -244,7 +243,7 @@ Each object must have exactly these fields:
             if valid:
                 pool.mark_success(idx)
                 print(f'      ✅ {len(valid)}/{len(data)} via {pool.name.lower()}', flush=True)
-                GLOBAL_FAIL_COUNT = 0
+                FAILURE_TRACKER["count"] = 0
                 return valid
         except Exception as e:
             err = str(e)
@@ -252,10 +251,9 @@ Each object must have exactly these fields:
             elif '401' in err or '403' in err: pool.mark_dead(idx, reason='invalid key')
             else: pool.mark_error(idx)
             continue
-    global GLOBAL_FAIL_COUNT
-    GLOBAL_FAIL_COUNT += 1
-    print(f"  ⚠️ All providers failed. Consecutive failures: {GLOBAL_FAIL_COUNT}/{MAX_CONSECUTIVE_FAILURES}")
-    if GLOBAL_FAIL_COUNT >= MAX_CONSECUTIVE_FAILURES:
+    FAILURE_TRACKER["count"] += 1
+    print(f"  ⚠️ All providers failed. Consecutive failures: {FAILURE_TRACKER["count"]}/{FAILURE_TRACKER["max"]}")
+    if FAILURE_TRACKER["count"] >= FAILURE_TRACKER["max"]:
         print("🚨 ALL API KEYS EXHAUSTED. Exiting gracefully to save time. Next cron will resume.")
         send_telegram("⚠️ *System Notice*: All API keys exhausted for this hour. Pausing until next scheduled run.")
         sys.exit(0)
