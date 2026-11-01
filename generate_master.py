@@ -12,7 +12,6 @@ from supabase import create_client
 from openai import OpenAI
 from google import genai
 import json_repair
-import boto3
 from key_pool import get_pool
 from diagram_mapping import DIAGRAM_KIND_BY_TOPIC_ID
 from svg_sanitizer import sanitize_question_svgs
@@ -24,6 +23,7 @@ s = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
 
 # --- AWS BEDROCK SETUP ---
 try:
+    import boto3
     bedrock = boto3.client(
         service_name='bedrock-runtime',
         region_name=os.getenv('AWS_REGION', 'us-east-1'),
@@ -31,7 +31,7 @@ try:
         aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
     )
 except Exception as e:
-    print("AWS Bedrock Init Error:", e)
+    print("⚠️ AWS Bedrock Init Error (Falling back to free APIs):", e)
     bedrock = None
 
 
