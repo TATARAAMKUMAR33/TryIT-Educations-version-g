@@ -3,15 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
-// Error checking for missing secrets
 if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
   console.error("❌ CRITICAL ERROR: VAPID keys are missing from environment variables!");
   process.exit(1);
 }
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL || (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY)) {
-  console.error("❌ CRITICAL ERROR: Supabase URL or Key is missing!");
-  process.exit(1);
-}
+
+// Clean the keys: remove "=" padding, quotes, and spaces
+const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY.replace(/=/g, '').replace(/['"]/g, '').trim();
+const privateKey = process.env.VAPID_PRIVATE_KEY.replace(/['"]/g, '').trim();
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL, 
@@ -20,8 +19,8 @@ const supabase = createClient(
 
 webpush.setVapidDetails(
   'mailto:tatu.ind@hotmail.com',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
+  publicKey,
+  privateKey
 );
 
 async function sendAutomatedAlerts() {
@@ -33,30 +32,16 @@ async function sendAutomatedAlerts() {
     .in('severity', ['critical', 'warning'])
     .eq('notified', false);
 
-  if (eventError) {
-    console.error("DB Error:", eventError);
-    return;
-  }
-
-  if (!events || events.length === 0) {
-    console.log('✅ No new critical events to notify.');
-    return;
-  }
+  if (eventError) { console.error("DB Error:", eventError); return; }
+  if (!events || events.length === 0) { console.log('✅ No new critical events to notify.'); return; }
 
   console.log(`🚨 Found ${events.length} new critical events!`);
 
   const { data: subscriptions, error: subError } = await supabase.from('push_subscriptions').select('*');
-  
-  if (subError || !subscriptions || subscriptions.length === 0) {
-    console.log('❌ No devices are subscribed to push notifications.');
-    return;
-  }
+  if (subError || !subscriptions || subscriptions.length === 0) { console.log('❌ No devices are subscribed to push notifications.'); return; }
 
   for (const event of events) {
-    const payload = JSON.stringify({ 
-      title: `🚨 TryIT Alert: ${event.title}`, 
-      body: event.description 
-    });
+    const payload = JSON.stringify({ title: `🚨 TryIT Alert: ${event.title}`, body: event.description });
 
     const promises = subscriptions.map(sub => {
       const pushSubscription = {
