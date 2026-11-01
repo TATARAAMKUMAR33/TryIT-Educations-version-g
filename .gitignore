@@ -18,3 +18,15 @@ output/
 pending_review.jsonl
 .env.save
 .env.*
+
+snapshot_*/
+
+# Local Test Scripts
+patch_*.py
+gen_report.py
+get_chat_id.py
+inspector.py
+rescue_rejected.py
+send_report.py
+telegram_report.txt
+test_tg.py
