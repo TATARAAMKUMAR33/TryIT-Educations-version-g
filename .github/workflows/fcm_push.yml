@@ -1,0 +1,23 @@
+﻿name: FCM Mobile Push
+
+on:
+  schedule:
+    - cron: '*/15 * * * *' # Every 15 minutes
+  workflow_dispatch:
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install requests python-dotenv
+      - name: Run FCM Worker
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          FCM_SERVER_KEY: ${{ secrets.FCM_SERVER_KEY }} # You will add this in GitHub Secrets
+        run: python fcm_worker.py
