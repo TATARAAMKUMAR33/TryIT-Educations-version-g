@@ -154,7 +154,7 @@ def call_bedrock(prompt):
     try:
         # Using the Converse API for universal model compatibility
         response = bedrock.converse(
-            modelId="us.us.openai.gpt-6-luna", 
+            modelId="us.global.global.openai.gpt-6-luna", 
             messages=[{"role": "user", "content": [{"text": prompt}]}],
             inferenceConfig={"temperature": 0.6, "maxTokens": 4000}
         )
