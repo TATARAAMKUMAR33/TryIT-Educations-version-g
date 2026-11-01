@@ -1,0 +1,33 @@
+﻿name: 10-Minute Telegram Report
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Runs every 10 minutes
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests python-dotenv
+
+      - name: Create .env from secrets
+        run: |
+          cat > .env << 'ENVEOF'
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+          TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID=8486774321
+          ENVEOF
+
+      - name: Send Report
+        run: python hourly_report.py
