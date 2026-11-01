@@ -12,9 +12,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22' # Upgraded to Node 22 which has native WebSockets
       - name: Install dependencies
-        run: npm install web-push @supabase/supabase-js dotenv
+        run: npm install web-push @supabase/supabase-js dotenv ws
       - name: Send Alerts
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

@@ -1,12 +1,18 @@
 ﻿import webpush from 'web-push';
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+// Pass the 'ws' transport so it works on Node 20 in GitHub Actions
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL, 
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  { realtime: { transport: ws } }
+);
 
 webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT || 'mailto:admin@tryit.com',
+  process.env.VAPID_SUBJECT || 'mailto:tatu.ind@hotmail.com',
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
@@ -14,7 +20,6 @@ webpush.setVapidDetails(
 async function sendAutomatedAlerts() {
   console.log('Checking for un-notified critical events...');
 
-  // 1. Fetch events that haven't been notified yet
   const { data: events, error: eventError } = await supabase
     .from('system_events')
     .select('*')
@@ -28,7 +33,6 @@ async function sendAutomatedAlerts() {
 
   console.log(`🚨 Found ${events.length} new critical events!`);
 
-  // 2. Fetch all subscribed devices
   const { data: subscriptions, error: subError } = await supabase.from('push_subscriptions').select('*');
   
   if (subError || !subscriptions || subscriptions.length === 0) {
@@ -36,7 +40,6 @@ async function sendAutomatedAlerts() {
     return;
   }
 
-  // 3. Send the push notification
   for (const event of events) {
     const payload = JSON.stringify({ 
       title: `🚨 TryIT Alert: ${event.title}`, 
@@ -51,7 +54,6 @@ async function sendAutomatedAlerts() {
 
       return webpush.sendNotification(pushSubscription, payload).catch(err => {
         if (err.statusCode === 410 || err.statusCode === 404) {
-          // Delete dead subscriptions
           return supabase.from('push_subscriptions').delete().eq('id', sub.id);
         }
         console.error('Error sending push:', err);
@@ -59,8 +61,6 @@ async function sendAutomatedAlerts() {
     });
 
     await Promise.all(promises);
-
-    // 4. Mark the event as notified
     await supabase.from('system_events').update({ notified: true }).eq('id', event.id);
   }
 
