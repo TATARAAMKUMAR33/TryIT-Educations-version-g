@@ -1,18 +1,25 @@
 ﻿import webpush from 'web-push';
 import { createClient } from '@supabase/supabase-js';
-import ws from 'ws';
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
-// Pass the 'ws' transport so it works on Node 20 in GitHub Actions
+// Error checking for missing secrets
+if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+  console.error("❌ CRITICAL ERROR: VAPID keys are missing from environment variables!");
+  process.exit(1);
+}
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL || (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY)) {
+  console.error("❌ CRITICAL ERROR: Supabase URL or Key is missing!");
+  process.exit(1);
+}
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL, 
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  { realtime: { transport: ws } }
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
 webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT || 'mailto:tatu.ind@hotmail.com',
+  'mailto:tatu.ind@hotmail.com',
   process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
@@ -26,7 +33,12 @@ async function sendAutomatedAlerts() {
     .in('severity', ['critical', 'warning'])
     .eq('notified', false);
 
-  if (eventError || !events || events.length === 0) {
+  if (eventError) {
+    console.error("DB Error:", eventError);
+    return;
+  }
+
+  if (!events || events.length === 0) {
     console.log('✅ No new critical events to notify.');
     return;
   }
