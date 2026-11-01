@@ -24,7 +24,8 @@ s = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
 # --- AWS BEDROCK SETUP ---
 try:
     import boto3
-    bedrock = boto3.client(
+    bedrock = None # DISABLED FOR NOW
+    _unused = boto3.client(
         service_name='bedrock-runtime',
         region_name=os.getenv('AWS_REGION', 'us-east-1'),
         aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
@@ -208,7 +209,7 @@ Each object must have exactly these fields:
 - cross_exam_intelligence: Name the SPECIFIC EXAMS this exact question type appears in (e.g., 'UPSC Prelims, SSC CGL Tier 1, RRB NTPC, State PSCs') and what angle they test. Do not give generic advice.
 """
     # IF LEVEL >= 7, ROUTE TO AWS BEDROCK FOR HIGH-QUALITY REASONING
-    if level >= 7 and bedrock:
+    if False: # AWS DISABLED
         bedrock_result = call_bedrock(prompt)
         if bedrock_result:
             return bedrock_result
