@@ -56,7 +56,7 @@ OPENAI_KEYS = load_all_keys("OPENAI_API_KEY", 5)
 GEMINI_KEYS = load_all_keys("GEMINI_API_KEY", 6)
 
 # ── BUILD CLIENTS & POOLS ──
-NVIDIA_CLIENTS = [(k, OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k), "nvidia/llama-3.1-nemotron-70b-instruct") for k in NVIDIA_KEYS]
+NVIDIA_CLIENTS = [(k, OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k), "deepseek-ai/deepseek-v4.1-flash") for k in NVIDIA_KEYS]
 GROQ_CLIENTS = [(k, OpenAI(base_url="https://api.groq.com/openai/v1", api_key=k), "openai/gpt-oss-120b") for k in GROQ_KEYS]
 SAMBANOVA_CLIENTS = [(k, OpenAI(base_url="https://api.sambanova.ai/v1", api_key=k), "Meta-Llama-3.3-70B-Instruct") for k in SAMBANOVA_KEYS]
 OPENROUTER_CLIENTS = [(k, OpenAI(base_url="https://openrouter.ai/api/v1", api_key=k), "meta-llama/llama-3.3-70b-instruct:free") for k in OPENROUTER_KEYS]
