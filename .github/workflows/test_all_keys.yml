@@ -33,20 +33,9 @@ jobs:
           SAMBANOVA_API_KEY_3=${{ secrets.SAMBANOVA_API_KEY_3 }}
           SAMBANOVA_API_KEY_4=${{ secrets.SAMBANOVA_API_KEY_4 }}
           SAMBANOVA_API_KEY_5=${{ secrets.SAMBANOVA_API_KEY_5 }}
-          OPENROUTER_API_KEY_1=${{ secrets.OPENROUTER_API_KEY_1 }}
-          OPENROUTER_API_KEY_2=${{ secrets.OPENROUTER_API_KEY_2 }}
-          OPENROUTER_API_KEY_3=${{ secrets.OPENROUTER_API_KEY_3 }}
-          OPENROUTER_API_KEY_4=${{ secrets.OPENROUTER_API_KEY_4 }}
-          OPENROUTER_API_KEY_5=${{ secrets.OPENROUTER_API_KEY_5 }}
-          MISTRAL_API_KEY_1=${{ secrets.MISTRAL_API_KEY_1 }}
-          MISTRAL_API_KEY_2=${{ secrets.MISTRAL_API_KEY_2 }}
-          MISTRAL_API_KEY_3=${{ secrets.MISTRAL_API_KEY_3 }}
           OPENAI_API_KEY_1=${{ secrets.OPENAI_API_KEY_1 }}
           OPENAI_API_KEY_2=${{ secrets.OPENAI_API_KEY_2 }}
           OPENAI_API_KEY_3=${{ secrets.OPENAI_API_KEY_3 }}
-          GH_MODELS_TOKEN_1=${{ secrets.GH_MODELS_TOKEN_1 }}
-          GH_MODELS_TOKEN_2=${{ secrets.GH_MODELS_TOKEN_2 }}
-          GH_MODELS_TOKEN_3=${{ secrets.GH_MODELS_TOKEN_3 }}
           ENVEOF
       - name: Run Test
-        run: python test_all_keys.py
+        run: python master_test.py
