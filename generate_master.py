@@ -57,7 +57,7 @@ SAMBANOVA_KEYS = load_all_keys("SAMBANOVA_API_KEY", 5)
 GEMINI_KEYS = load_all_keys("GEMINI_API_KEY", 6)
 
 # ── BUILD CLIENTS & POOLS ──
-NVIDIA_CLIENTS = [(k, OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k), "meta/llama-3.1-8b-instruct") for k in NVIDIA_KEYS]
+NVIDIA_CLIENTS = [(k, OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k), "nvidia/nemotron-3.5-lightning-30b-a3b") for k in NVIDIA_KEYS]
 GROQ_CLIENTS = [(k, OpenAI(base_url="https://api.groq.com/openai/v1", api_key=k), "openai/gpt-oss-120b") for k in GROQ_KEYS]
 SAMBANOVA_CLIENTS = [(k, OpenAI(base_url="https://api.sambanova.ai/v1", api_key=k), "gemma-4-31B-it") for k in SAMBANOVA_KEYS]
 
