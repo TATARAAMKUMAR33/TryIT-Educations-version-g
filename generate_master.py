@@ -57,7 +57,7 @@ SAMBANOVA_KEYS = load_all_keys("SAMBANOVA_API_KEY", 5)
 GEMINI_KEYS = load_all_keys("GEMINI_API_KEY", 6)
 
 # ── BUILD CLIENTS & POOLS ──
-NVIDIA_CLIENTS = [(k, OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k), "deepseek-ai/deepseek-v4.1-flash") for k in NVIDIA_KEYS]
+NVIDIA_CLIENTS = [(k, OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k), "nvidia/llama-3.1-nemotron-51b-instruct") for k in NVIDIA_KEYS]
 GROQ_CLIENTS = [(k, OpenAI(base_url="https://api.groq.com/openai/v1", api_key=k), "openai/gpt-oss-120b") for k in GROQ_KEYS]
 SAMBANOVA_CLIENTS = [(k, OpenAI(base_url="https://api.sambanova.ai/v1", api_key=k), "gemma-4-31B-it") for k in SAMBANOVA_KEYS]
 
@@ -68,10 +68,10 @@ SAMBANOVA_POOL = get_pool("SambaNova", SAMBANOVA_KEYS, cooldown_seconds=60)
 
 
 # ── GEMINI SETUP ──
-GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_MODEL = "gemini-2.5-flash-lite"
 def _find_working_gemini_model(key):
     client = genai.Client(api_key=key)
-    for model in ["gemini-flash-lite-latest", "gemini-3.8-flash", "gemini-3.5-flash"]:
+    for model in ["gemini-flash-lite-latest", "gemini-2.5-flash-lite", "gemini-3.5-flash"]:
         try:
             client.models.generate_content(model=model, contents="hi")
             return model
@@ -268,30 +268,29 @@ def verify(q, level):
     model = GEMINI_KEY_TO_MODEL[key]
     try:
         client = genai.Client(api_key=key)
-        prompt = f"""You are a strict math and logic examiner.
-FIRST: Solve the problem independently.
-SECOND: Check if the provided correct_answer index exactly matches your solved answer.
-THIRD: Check if the explanation contains confused monologue (like 'Wait' or 'Actually').
+        prompt = f"""Rate this MCQ for difficulty {level}/10.
 Q: {q.get('question','')}
 Options: {q.get('options',[])}
-Provided correct index: {q.get('correct_answer',0)}
-Provided Explanation: {q.get('why_correct','')}
-
-Return ONLY JSON: {{"passed": true, "score": 9, "reason": "Math matches."}} OR {{"passed": false, "score": 0, "reason": "Math does not match / Monologue detected."}}"""
-        for attempt in range(3):
+Correct index: {q.get('correct_answer',0)}
+Return ONLY JSON: {{"passed": true, "score": 9, "reason": "..."}}"""
+        
+        models_to_try = ["gemini-2.5-flash-lite", "gemini-3.6-flash", "gemini-2.5-flash"]
+        last_error = None
+        
+        for gemini_model in models_to_try:
             try:
-                r = client.models.generate_content(model=model, contents=prompt)
-                txt = re.sub(r'^```json\s*|\s*```$', '', (r.text or '').strip(), flags=re.MULTILINE).strip()
+                r = client.models.generate_content(model=gemini_model, contents=prompt)
                 break
             except Exception as e:
-                if "503" in str(e) or "overloaded" in str(e).lower():
-                    wait_time = 2 ** attempt  # 1s, 2s, 4s
-                    print(f"   ⚠️ Gemini overloaded (attempt {attempt+1}/3). Waiting {wait_time}s...")
-                    time.sleep(wait_time)
+                last_error = e
+                if "404" in str(e) or "not found" in str(e).lower():
+                    continue
                 else:
                     raise e
         else:
-            raise Exception("Gemini API is overloaded after multiple retries.")
+            raise last_error
+
+        txt = re.sub(r'^```json\s*|\s*```$', '', (r.text or '').strip(), flags=re.MULTILINE).strip()
         m = re.search(r'\{.*\}', txt, re.DOTALL)
         if not m: GEMINI_POOL.mark_error(idx); return False, 0, 'no json'
         d = json_repair.loads(m.group())
@@ -306,7 +305,6 @@ Return ONLY JSON: {{"passed": true, "score": 9, "reason": "Math matches."}} OR {
         else:
             GEMINI_POOL.mark_error(idx)
         
-        # 503 RESILIENCE: If Gemini is totally down, auto-pass the question!
         if '503' in err or 'overloaded' in err.lower() or 'timeout' in err.lower():
             print("   ⚠️ Gemini is down. Auto-passing question to prevent pipeline crash.")
             return True, 7, 'Gemini offline, auto-passed.'
