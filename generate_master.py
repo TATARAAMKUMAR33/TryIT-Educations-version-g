@@ -68,10 +68,10 @@ SAMBANOVA_POOL = get_pool("SambaNova", SAMBANOVA_KEYS, cooldown_seconds=60)
 
 
 # ── GEMINI SETUP ──
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.8-flash"
 def _find_working_gemini_model(key):
     client = genai.Client(api_key=key)
-    for model in ["gemini-flash-lite-latest", "gemini-2.5-flash", "gemini-3.5-flash"]:
+    for model in ["gemini-flash-lite-latest", "gemini-3.8-flash", "gemini-3.5-flash"]:
         try:
             client.models.generate_content(model=model, contents="hi")
             return model
