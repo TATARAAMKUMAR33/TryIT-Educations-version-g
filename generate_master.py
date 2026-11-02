@@ -274,7 +274,7 @@ Options: {q.get('options',[])}
 Correct index: {q.get('correct_answer',0)}
 Return ONLY JSON: {{"passed": true, "score": 9, "reason": "..."}}"""
         
-        models_to_try = ["gemini-2.5-flash-lite", "gemini-3.6-flash", "gemini-2.5-flash"]
+        models_to_try = ["gemini-2.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite"]
         last_error = None
         
         for gemini_model in models_to_try:
