@@ -59,7 +59,7 @@ GEMINI_KEYS = load_all_keys("GEMINI_API_KEY", 6)
 # ── BUILD CLIENTS & POOLS ──
 NVIDIA_CLIENTS = [(k, OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k), "deepseek-ai/deepseek-v4.1-flash") for k in NVIDIA_KEYS]
 GROQ_CLIENTS = [(k, OpenAI(base_url="https://api.groq.com/openai/v1", api_key=k), "openai/gpt-oss-120b") for k in GROQ_KEYS]
-SAMBANOVA_CLIENTS = [(k, OpenAI(base_url="https://api.sambanova.ai/v1", api_key=k), "DeepSeek-V3.2") for k in SAMBANOVA_KEYS]
+SAMBANOVA_CLIENTS = [(k, OpenAI(base_url="https://api.sambanova.ai/v1", api_key=k), "gemma-4-31B-it") for k in SAMBANOVA_KEYS]
 
 
 NVIDIA_POOL = get_pool("NVIDIA", NVIDIA_KEYS, cooldown_seconds=90)
