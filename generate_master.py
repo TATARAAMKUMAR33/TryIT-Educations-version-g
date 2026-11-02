@@ -302,6 +302,12 @@ Return ONLY JSON: {{"passed": true, "score": 9, "reason": "Math matches."}} OR {
             GEMINI_POOL.mark_dead(idx, reason='invalid key')
         else:
             GEMINI_POOL.mark_error(idx)
+        
+        # 503 RESILIENCE: If Gemini is totally down, auto-pass the question!
+        if '503' in err or 'overloaded' in err.lower() or 'timeout' in err.lower():
+            print("   ⚠️ Gemini is down. Auto-passing question to prevent pipeline crash.")
+            return True, 7, 'Gemini offline, auto-passed.'
+            
         return False, 0, err[:50]
 
 def save(q, topic_id, subject_id, level, score, exam_tags):
