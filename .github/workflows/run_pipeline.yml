@@ -68,6 +68,7 @@ jobs:
 
       - name: Send Hourly Telegram Report
         if: always()
-        run: python3 status_reporter.py
+        run: python3 hourly_report.py
+
 
 
