@@ -15,7 +15,7 @@ from datetime import datetime, timezone, timedelta
 class KeyPool:
     """Thread-safe key pool with per-key cooldown tracking."""
 
-    def __init__(self, name, keys, cooldown_seconds=60):
+    def __init__(self, name, keys, cooldown_seconds=120):
         """
         name: label for logging (e.g. "NVIDIA")
         keys: list of API keys
@@ -115,7 +115,7 @@ class KeyPool:
 _pools = {}
 _pools_lock = threading.Lock()
 
-def get_pool(name, keys, cooldown_seconds=60):
+def get_pool(name, keys, cooldown_seconds=120):
     """Get or create a KeyPool by name."""
     with _pools_lock:
         if name not in _pools:
