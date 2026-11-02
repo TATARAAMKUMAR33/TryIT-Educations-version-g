@@ -1,0 +1,26 @@
+﻿name: Deep Test Remaining
+on: workflow_dispatch
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install requests python-dotenv
+      - name: Create .env
+        run: |
+          cat > .env << 'ENVEOF'
+          SAMBANOVA_API_KEY_1=${{ secrets.SAMBANOVA_API_KEY_1 }}
+          SAMBANOVA_API_KEY_2=${{ secrets.SAMBANOVA_API_KEY_2 }}
+          SAMBANOVA_API_KEY_3=${{ secrets.SAMBANOVA_API_KEY_3 }}
+          SAMBANOVA_API_KEY_4=${{ secrets.SAMBANOVA_API_KEY_4 }}
+          SAMBANOVA_API_KEY_5=${{ secrets.SAMBANOVA_API_KEY_5 }}
+          OPENAI_API_KEY_1=${{ secrets.OPENAI_API_KEY_1 }}
+          OPENAI_API_KEY_2=${{ secrets.OPENAI_API_KEY_2 }}
+          OPENAI_API_KEY_3=${{ secrets.OPENAI_API_KEY_3 }}
+          ENVEOF
+      - name: Run Test
+        run: python test_remaining.py
