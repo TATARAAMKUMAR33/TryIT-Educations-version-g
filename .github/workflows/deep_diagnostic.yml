@@ -1,0 +1,24 @@
+﻿name: Deep Diagnostic
+on: workflow_dispatch
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install requests python-dotenv
+      - name: Create .env
+        run: |
+          cat > .env << 'ENVEOF'
+          NVIDIA_API_KEY_1=${{ secrets.NVIDIA_API_KEY_1 }}
+          GEMINI_API_KEY_1=${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2=${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3=${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4=${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5=${{ secrets.GEMINI_API_KEY_5 }}
+          ENVEOF
+      - name: Run Test
+        run: python deep_diagnostic.py
