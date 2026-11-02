@@ -1,0 +1,19 @@
+﻿name: Check SambaNova Models
+on: workflow_dispatch
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install requests python-dotenv
+      - name: Create .env
+        run: |
+          cat > .env << 'ENVEOF'
+          SAMBANOVA_API_KEY_1=${{ secrets.SAMBANOVA_API_KEY_1 }}
+          ENVEOF
+      - name: Run Check
+        run: python check_samba.py

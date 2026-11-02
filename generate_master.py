@@ -53,19 +53,19 @@ def load_all_keys(prefix, max_n=6):
 NVIDIA_KEYS = load_all_keys("NVIDIA_API_KEY", 5)
 GROQ_KEYS = load_all_keys("GROQ_API_KEY", 5)
 SAMBANOVA_KEYS = load_all_keys("SAMBANOVA_API_KEY", 5)
-OPENAI_KEYS = load_all_keys("OPENAI_API_KEY", 5)
+
 GEMINI_KEYS = load_all_keys("GEMINI_API_KEY", 6)
 
 # ── BUILD CLIENTS & POOLS ──
 NVIDIA_CLIENTS = [(k, OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k), "deepseek-ai/deepseek-v4.1-flash") for k in NVIDIA_KEYS]
 GROQ_CLIENTS = [(k, OpenAI(base_url="https://api.groq.com/openai/v1", api_key=k), "openai/gpt-oss-120b") for k in GROQ_KEYS]
 SAMBANOVA_CLIENTS = [(k, OpenAI(base_url="https://api.sambanova.ai/v1", api_key=k), "Meta-Llama-3.3-70B-Instruct") for k in SAMBANOVA_KEYS]
-OPENAI_CLIENTS = [(k, OpenAI(base_url="https://api.openai.com/v1", api_key=k), "gpt-4o-mini") for k in OPENAI_KEYS]
+
 
 NVIDIA_POOL = get_pool("NVIDIA", NVIDIA_KEYS, cooldown_seconds=90)
 GROQ_POOL = get_pool("Groq", GROQ_KEYS, cooldown_seconds=90)
 SAMBANOVA_POOL = get_pool("SambaNova", SAMBANOVA_KEYS, cooldown_seconds=60)
-OPENAI_POOL = get_pool("OpenAI", OPENAI_KEYS, cooldown_seconds=60)
+
 
 # ── GEMINI SETUP ──
 GEMINI_MODEL = "gemini-2.5-flash"
@@ -216,8 +216,7 @@ Each object must have exactly these fields:
     providers = [
         (GROQ_POOL, GROQ_CLIENTS),
         (NVIDIA_POOL, NVIDIA_CLIENTS),
-        (SAMBANOVA_POOL, SAMBANOVA_CLIENTS),
-        (OPENAI_POOL, OPENAI_CLIENTS)
+        (SAMBANOVA_POOL, SAMBANOVA_CLIENTS)
     ]
     random.shuffle(providers)
     
