@@ -237,35 +237,28 @@ Each object must have exactly these fields:
                 
             _, client, model = client_tuple
             try:
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "system", "content": "Output ONLY valid JSON arrays."}, {"role": "user", "content": prompt}],
-                temperature=0.6, max_tokens=4000, timeout=60,
-            )
-            msg = resp.choices[0].message
-            raw = msg.content or getattr(msg, 'reasoning_content', None) or ''
-            if not raw: pool.mark_error(idx); continue
-            data = extract_json_array(raw)
-            if not data: pool.mark_error(idx); continue
-            valid = [q for q in data if (isinstance(q, dict) and q.get('question') and isinstance(q.get('options'), list) and len(q['options']) == 4 and isinstance(q.get('correct_answer'), int) and 0 <= q['correct_answer'] <= 3)]
-            if valid:
-                pool.mark_success(idx)
-                print(f'      ✅ {len(valid)}/{len(data)} via {pool.name.lower()}', flush=True)
-                FAILURE_TRACKER["count"] = 0
-                return valid
-        except Exception as e:
-            err = str(e)
-            if '429' in err or 'rate' in err.lower() or 'timed out' in err.lower(): pool.mark_rate_limit(idx, cooldown=45)
-            elif '401' in err or '403' in err: pool.mark_dead(idx, reason='invalid key')
-            else: pool.mark_error(idx)
-            continue
-    FAILURE_TRACKER["count"] += 1
-    print(f"  ⚠️ All providers failed. Consecutive failures: {FAILURE_TRACKER["count"]}/{FAILURE_TRACKER["max"]}")
-            if FAILURE_TRACKER["count"] >= FAILURE_TRACKER["max"]:
-            print("🚨 ALL API KEYS EXHAUSTED. Sleeping for 5 minutes to let quotas reset...")
-            time.sleep(300) # Sleep for 5 minutes
-            FAILURE_TRACKER["count"] = 0 # Reset the counter
-            return [] # Return empty to continue the outer loop
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "system", "content": "Output ONLY valid JSON arrays."}, {"role": "user", "content": prompt}],
+                    temperature=0.6, max_tokens=4000, timeout=60,
+                )
+                msg = resp.choices[0].message
+                raw = msg.content or getattr(msg, 'reasoning_content', None) or ''
+                if not raw: pool.mark_error(idx); continue
+                data = extract_json_array(raw)
+                if not data: pool.mark_error(idx); continue
+                valid = [q for q in data if (isinstance(q, dict) and q.get('question') and isinstance(q.get('options'), list) and len(q['options']) == 4 and isinstance(q.get('correct_answer'), int) and 0 <= q['correct_answer'] <= 3)]
+                if valid:
+                    pool.mark_success(idx)
+                    print(f'      OK {len(valid)}/{len(data)} via {pool.name.lower()}', flush=True)
+                    return valid
+            except Exception as e:
+                err = str(e)
+                if '429' in err or 'rate' in err.lower() or 'timed out' in err.lower(): pool.mark_rate_limit(idx, cooldown=45)
+                elif '401' in err or '403' in err: pool.mark_dead(idx, reason='invalid key')
+                else: pool.mark_error(idx)
+                continue
+    return [] # Return empty to continue the outer loop
     return []
 
 def verify(q, level):
@@ -380,7 +373,7 @@ def process_topic(topic):
 def main():
     print("🚀 Starting TryIT Engine (2-Hour Autonomous Mode)")
     start_time = time.time()
-    max_runtime = 115 * 60 # Run for 115 minutes (leaves buffer for 120m timeout)
+    max_runtime = 115 * 60 # Run for 115 minutes
     
     grand_total = 0
     
@@ -391,8 +384,7 @@ def main():
             time.sleep(60)
             continue
 
-        print(f'
-📋 Processing {len(topics)} topics (Pass started at {int((time.time() - start_time)/60)} mins)...')
+        print(f"\n📋 Processing {len(topics)} topics (Pass started at {int((time.time() - start_time)/60)} mins)...")
         pass_total = 0
         
         with ThreadPoolExecutor(max_workers=CONCURRENT_WORKERS) as ex:
@@ -404,8 +396,7 @@ def main():
                     print(f"   !! {futures[fut]}: {e}")
                     
         grand_total += pass_total
-        print(f'
-✅ Pass complete. Generated {pass_total} this pass. Total: {grand_total}')
+        print(f"\n✅ Pass complete. Generated {pass_total} this pass. Total: {grand_total}")
         
         if pass_total == 0:
             print("🚨 ALL APIS RATE LIMITED. Sleeping for 5 minutes to let quotas reset...")
@@ -414,9 +405,7 @@ def main():
             print("⏳ Pausing 10 seconds before next pass...")
             time.sleep(10) # Tiny pause to let API breathe
             
-    print(f'
-⏰ 115-minute limit reached. Total new: {grand_total}')
+    print(f"\n⏰ 115-minute limit reached. Total new: {grand_total}")
 
 if __name__ == "__main__":
     main()
-
