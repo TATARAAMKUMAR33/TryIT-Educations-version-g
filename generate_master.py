@@ -275,8 +275,20 @@ Provided correct index: {q.get('correct_answer',0)}
 Provided Explanation: {q.get('why_correct','')}
 
 Return ONLY JSON: {{"passed": true, "score": 9, "reason": "Math matches."}} OR {{"passed": false, "score": 0, "reason": "Math does not match / Monologue detected."}}"""
-        r = client.models.generate_content(model=model, contents=prompt)
-        txt = re.sub(r'^```json\s*|\s*```$', '', (r.text or '').strip(), flags=re.MULTILINE).strip()
+        for attempt in range(3):
+            try:
+                r = client.models.generate_content(model=model, contents=prompt)
+                txt = re.sub(r'^```json\s*|\s*```$', '', (r.text or '').strip(), flags=re.MULTILINE).strip()
+                break
+            except Exception as e:
+                if "503" in str(e) or "overloaded" in str(e).lower():
+                    wait_time = 2 ** attempt  # 1s, 2s, 4s
+                    print(f"   ⚠️ Gemini overloaded (attempt {attempt+1}/3). Waiting {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    raise e
+        else:
+            raise Exception("Gemini API is overloaded after multiple retries.")
         m = re.search(r'\{.*\}', txt, re.DOTALL)
         if not m: GEMINI_POOL.mark_error(idx); return False, 0, 'no json'
         d = json_repair.loads(m.group())
