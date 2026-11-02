@@ -222,12 +222,21 @@ Each object must have exactly these fields:
     
     for pool, clients in providers:
         if not clients: continue
-        idx, key = pool.get_key(wait=False)
-        if key is None: continue
-        client_tuple = next((c for c in clients if c[0] == key), None)
-        if not client_tuple: continue
-        _, client, model = client_tuple
-        try:
+        
+        # ROTATION FIX: Try all available keys for this provider
+        keys_tried = 0
+        while keys_tried < len(clients):
+            idx, key = pool.get_key(wait=False)
+            if key is None: break # All keys for this provider are cooling down
+            
+            keys_tried += 1
+            client_tuple = next((c for c in clients if c[0] == key), None)
+            if not client_tuple: 
+                pool.mark_error(idx)
+                continue
+                
+            _, client, model = client_tuple
+            try:
             resp = client.chat.completions.create(
                 model=model,
                 messages=[{"role": "system", "content": "Output ONLY valid JSON arrays."}, {"role": "user", "content": prompt}],
