@@ -369,15 +369,45 @@ def process_topic(topic):
     return total
 
 def main():
-    topics = s.table('topics').select('topic_id, topic_name, subject_id, difficulty_range, coverage_score').eq('launch_phase', 'phase_1_now').order('coverage_score', desc=True).execute().data
-    print(f'\n📚 {len(topics)} topics queued\n')
+    print("🚀 Starting TryIT Engine (2-Hour Autonomous Mode)")
+    start_time = time.time()
+    max_runtime = 115 * 60 # Run for 115 minutes (leaves buffer for 120m timeout)
+    
     grand_total = 0
-    with ThreadPoolExecutor(max_workers=CONCURRENT_WORKERS) as ex:
-        futures = {ex.submit(process_topic, t): t['topic_id'] for t in topics}
-        for fut in as_completed(futures):
-            try: grand_total += fut.result()
-            except Exception as e: print(f"   !! {futures[fut]}: {e}")
-    print(f'\n✅ DONE. Total new: {grand_total}')
+    
+    while time.time() - start_time < max_runtime:
+        topics = s.table('topics').select('topic_id, topic_name, subject_id, difficulty_range, coverage_score').eq('launch_phase', 'phase_1_now').order('coverage_score', desc=True).execute().data
+        if not topics:
+            print("⚠️ No topics found. Sleeping 60s...")
+            time.sleep(60)
+            continue
+
+        print(f'
+📋 Processing {len(topics)} topics (Pass started at {int((time.time() - start_time)/60)} mins)...')
+        pass_total = 0
+        
+        with ThreadPoolExecutor(max_workers=CONCURRENT_WORKERS) as ex:
+            futures = {ex.submit(process_topic, t): t['topic_id'] for t in topics}
+            for fut in as_completed(futures):
+                try: 
+                    pass_total += fut.result()
+                except Exception as e: 
+                    print(f"   !! {futures[fut]}: {e}")
+                    
+        grand_total += pass_total
+        print(f'
+✅ Pass complete. Generated {pass_total} this pass. Total: {grand_total}')
+        
+        if pass_total == 0:
+            print("🚨 ALL APIS RATE LIMITED. Sleeping for 5 minutes to let quotas reset...")
+            time.sleep(300) # Sleep 5 mins
+        else:
+            print("⏳ Pausing 10 seconds before next pass...")
+            time.sleep(10) # Tiny pause to let API breathe
+            
+    print(f'
+⏰ 115-minute limit reached. Total new: {grand_total}')
 
 if __name__ == "__main__":
     main()
+
