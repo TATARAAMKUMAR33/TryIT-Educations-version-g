@@ -2,13 +2,13 @@
 
 on:
   schedule:
-    - cron: '0 */2 * * *' # Runs exactly every 1 hour
+    - cron: '0 */5 * * *' # Runs exactly every 1 hour
   workflow_dispatch: # Manual trigger
 
 jobs:
   generate:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 120
     concurrency:
       group: tryit-pipeline
       cancel-in-progress: true # <--- THIS KILLS OVERLAPPING RUNS AUTOMATICALLY
@@ -63,12 +63,13 @@ jobs:
 
       - name: Run generator
         id: gen
-        run: timeout 50m python3 -u generate_master.py || true
+        run: python3 -u generate_master.py
         continue-on-error: true
 
       - name: Send Hourly Telegram Report
         if: always()
         run: python3 hourly_report.py
+
 
 
 

@@ -252,10 +252,11 @@ Each object must have exactly these fields:
             continue
     FAILURE_TRACKER["count"] += 1
     print(f"  ⚠️ All providers failed. Consecutive failures: {FAILURE_TRACKER["count"]}/{FAILURE_TRACKER["max"]}")
-    if FAILURE_TRACKER["count"] >= FAILURE_TRACKER["max"]:
-        print("🚨 ALL API KEYS EXHAUSTED. Exiting gracefully to save time. Next cron will resume.")
-        send_telegram("⚠️ *System Notice*: All API keys exhausted for this hour. Pausing until next scheduled run.")
-        sys.exit(0)
+            if FAILURE_TRACKER["count"] >= FAILURE_TRACKER["max"]:
+            print("🚨 ALL API KEYS EXHAUSTED. Sleeping for 5 minutes to let quotas reset...")
+            time.sleep(300) # Sleep for 5 minutes
+            FAILURE_TRACKER["count"] = 0 # Reset the counter
+            return [] # Return empty to continue the outer loop
     return []
 
 def verify(q, level):
