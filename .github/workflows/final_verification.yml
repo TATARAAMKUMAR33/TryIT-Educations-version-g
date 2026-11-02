@@ -1,0 +1,38 @@
+﻿name: Final Verification
+on: workflow_dispatch
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: pip install requests python-dotenv
+      - name: Create .env
+        run: |
+          cat > .env << 'ENVEOF'
+          GROQ_API_KEY_1=${{ secrets.GROQ_API_KEY_1 }}
+          GROQ_API_KEY_2=${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3=${{ secrets.GROQ_API_KEY_3 }}
+          GROQ_API_KEY_4=${{ secrets.GROQ_API_KEY_4 }}
+          GROQ_API_KEY_5=${{ secrets.GROQ_API_KEY_5 }}
+          NVIDIA_API_KEY_1=${{ secrets.NVIDIA_API_KEY_1 }}
+          NVIDIA_API_KEY_2=${{ secrets.NVIDIA_API_KEY_2 }}
+          NVIDIA_API_KEY_3=${{ secrets.NVIDIA_API_KEY_3 }}
+          NVIDIA_API_KEY_4=${{ secrets.NVIDIA_API_KEY_4 }}
+          NVIDIA_API_KEY_5=${{ secrets.NVIDIA_API_KEY_5 }}
+          GEMINI_API_KEY_1=${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2=${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3=${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4=${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5=${{ secrets.GEMINI_API_KEY_5 }}
+          SAMBANOVA_API_KEY_1=${{ secrets.SAMBANOVA_API_KEY_1 }}
+          SAMBANOVA_API_KEY_2=${{ secrets.SAMBANOVA_API_KEY_2 }}
+          SAMBANOVA_API_KEY_3=${{ secrets.SAMBANOVA_API_KEY_3 }}
+          SAMBANOVA_API_KEY_4=${{ secrets.SAMBANOVA_API_KEY_4 }}
+          SAMBANOVA_API_KEY_5=${{ secrets.SAMBANOVA_API_KEY_5 }}
+          ENVEOF
+      - name: Run Test
+        run: python final_verification.py
