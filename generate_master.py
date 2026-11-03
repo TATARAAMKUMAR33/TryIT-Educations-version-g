@@ -76,7 +76,7 @@ SAMBA_CLIENTS  = {k: OpenAI(base_url="https://api.sambanova.ai/v1",          api
 GEMINI_KEY_TO_MODEL = {}
 print("Probing Gemini keys...", flush=True)
 for k in GEMINI_KEYS:
-    for model in ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite"]:
+    for model in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-1.5-flash"]:
         try:
             genai.Client(api_key=k).models.generate_content(model=model, contents="hi")
             GEMINI_KEY_TO_MODEL[k] = model
@@ -198,9 +198,9 @@ Output ONLY a valid JSON array — no markdown, no preamble:
     "why_wrong_option_b": "Students choose B because [specific misconception]. This is wrong because [exact reason].",
     "why_wrong_option_c": "Students choose C because [specific misconception]. This is wrong because [exact reason].",
     "why_wrong_option_d": "Students choose D because [specific misconception]. This is wrong because [exact reason].",
-    "story_explanation": "Ramu was [situation]. He noticed [concept in action]. This is exactly how [answer] works — [memorable connection].",
-    "shortcut_tips": "TRICK: [mnemonic or pattern]. In 10 seconds: [quick method to reach answer without full calculation].",
-    "cross_exam_intelligence": "UPSC Prelims: asks this as [angle/year]. SSC CGL: tests [angle]. RRB NTPC: [angle]. NEET/GATE: [angle if applicable]."
+    "story_explanation": "TEACH LIKE TO A 10-YEAR-OLD: Write 4 sentences using Ramu/Priya/shopkeeper/farmer/cricket team. Sentence 1: Character doing something familiar in daily Indian life. Sentence 2: They face the EXACT same problem as this question. Sentence 3: They solve it using the SAME logic as the correct answer — show the thinking step by step. Sentence 4: End with THIS IS WHY [correct option] is right — make it stick forever. The story must make the concept unforgettable, not just describe it.",
+    "shortcut_tips": "ONE specific memory trick — either MNEMONIC (acronym from key words), PATTERN (if question has X always pick Y), or VISUAL (picture it as...). Format exactly: TRICK: [name it]. HOW: [the trick in one line]. APPLY HERE: [show it working on this exact question in under 10 seconds].",
+    "cross_exam_intelligence": "UPSC Prelims: this concept appears as [exact type — assertion-reason/match-following/negative trap] watch out for [specific trap]. SSC CGL Tier-1: tested as [angle], common wrong answer is [option letter] because [reason]. RRB NTPC: [angle]. NEET/GATE/State PSC: [angle]. Give exam-specific warning not generic advice."
   }}
 ]"""
 
@@ -307,6 +307,8 @@ Check ALL of these:
 2. Is the correct answer factually correct?
 3. Is the explanation complete and not truncated?
 4. Are the wrong options plausible (not obviously wrong for this level)?
+5. Does story_explanation TEACH through a real story — character faces same problem, solves using same logic, ends with why correct answer wins? REJECT if story is generic or does not connect to answer.
+6. Does shortcut_tips give a REAL named trick with APPLY HERE example? REJECT if vague or just says remember this.
 
 Return ONLY JSON:
 {{"passed": true, "score": 8, "reason": "one clear sentence why passed or failed"}}
@@ -502,3 +504,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
