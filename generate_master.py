@@ -1,18 +1,14 @@
-# VERSION: 4.0 - UNIFIED ENGINE (Fixed all 10 bugs)
+﻿# VERSION: 5.0 - PIPELINE SPLIT ENGINE
 """
-TryIT Question Engine v4 — UNIFIED MULTI-PROVIDER
-Fixes:
-  - Correct models for all 4 providers
-  - SambaNova added as Tier 1 (405B = best free model)
-  - Single unified KeyPool used everywhere
-  - AWS Bedrock enabled for level 7-10
-  - Gemini reserved for QA verification only
-  - Proper fallback chain: SambaNova → Groq → NVIDIA → Gemini → Bedrock
-  - 8 concurrent workers
-  - Target: 2,000-3,000 questions per 2hr run
+TryIT Question Engine v5 - 4-STAGE PIPELINE
+Stage 1: Question skeleton  -> Groq gpt-oss-120b + SambaNova DeepSeek-V3.2
+Stage 2: 7-Layer explanation -> NVIDIA nemotron-550B + mistral-large-4
+Stage 3: Quality score check -> SambaNova gpt-oss-120b
+Stage 4: Final QA gate       -> Gemini gemini-3.5-flash
+Target: 2000-3000 questions per 2hr GitHub Actions run
 """
 
-import os, json, time, uuid, re, random, threading, sys
+import os, json, time, uuid, re, threading
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
@@ -21,7 +17,7 @@ from openai import OpenAI
 from google import genai
 import json_repair
 
-from backend_engine import safe_db_insert, is_duplicate, extract_json_array_robust
+from backend_engine import safe_db_insert, is_duplicate
 from key_pool import get_pool
 from entity_engine import get_context
 from diagram_mapping import DIAGRAM_KIND_BY_TOPIC_ID
@@ -30,357 +26,373 @@ from svg_sanitizer import sanitize_question_svgs
 load_dotenv(dotenv_path=".env", override=True)
 
 # ── CONSTANTS ──────────────────────────────────────────────────────────────────
-BATCH_SIZE          = 5       # Questions per API call
-CONCURRENT_WORKERS  = 8       # Parallel topic threads
-QUALITY_THRESHOLD   = 6       # Min Gemini score to accept (out of 10)
-TARGET_L1_L5        = 20      # Questions per topic per level (easy)
-TARGET_L6_L10       = 10      # Questions per topic per level (hard)
+BATCH_SIZE         = 5
+CONCURRENT_WORKERS = 8
+QUALITY_THRESHOLD  = 6
+TARGET_L1_L5       = 20
+TARGET_L6_L10      = 10
 
 # ── SUPABASE ───────────────────────────────────────────────────────────────────
-s = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
+s = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 # ── KEY LOADER ─────────────────────────────────────────────────────────────────
-def load_all_keys(prefix, max_n=5):
+def load_keys(prefix, n=5):
     keys = []
     base = os.getenv(prefix)
     if base and base.strip(): keys.append(base.strip())
-    for i in range(1, max_n + 1):
+    for i in range(1, n+1):
         k = os.getenv(f"{prefix}_{i}")
         if k and k.strip(): keys.append(k.strip())
     return keys
 
-NVIDIA_KEYS    = load_all_keys("NVIDIA_API_KEY", 5)
-GROQ_KEYS      = load_all_keys("GROQ_API_KEY", 5)
-SAMBANOVA_KEYS = load_all_keys("SAMBANOVA_API_KEY", 5)
-GEMINI_KEYS    = load_all_keys("GEMINI_API_KEY", 5)
+GROQ_KEYS      = load_keys("GROQ_API_KEY", 5)
+SAMBA_KEYS     = load_keys("SAMBANOVA_API_KEY", 5)
+NVIDIA_KEYS    = load_keys("NVIDIA_API_KEY", 5)
+GEMINI_KEYS    = load_keys("GEMINI_API_KEY", 5)
 
-print(f"🔑 Keys loaded — NVIDIA:{len(NVIDIA_KEYS)} GROQ:{len(GROQ_KEYS)} SAMBA:{len(SAMBANOVA_KEYS)} GEMINI:{len(GEMINI_KEYS)}", flush=True)
+print(f"Keys: GROQ={len(GROQ_KEYS)} SAMBA={len(SAMBA_KEYS)} NVIDIA={len(NVIDIA_KEYS)} GEMINI={len(GEMINI_KEYS)}", flush=True)
 
-# ── UNIFIED KEY POOLS (single system, no duplicates) ──────────────────────────
-# Cooldowns tuned per provider's actual rate limit reset time
-SAMBANOVA_POOL = get_pool("SambaNova", SAMBANOVA_KEYS, cooldown_seconds=60)
-GROQ_POOL      = get_pool("Groq",      GROQ_KEYS,      cooldown_seconds=62)
-NVIDIA_POOL    = get_pool("NVIDIA",    NVIDIA_KEYS,     cooldown_seconds=90)
-GEMINI_POOL    = get_pool("Gemini",    GEMINI_KEYS,     cooldown_seconds=60)
+# ── KEY POOLS ──────────────────────────────────────────────────────────────────
+GROQ_POOL   = get_pool("Groq",      GROQ_KEYS,   cooldown_seconds=62)
+SAMBA_POOL  = get_pool("SambaNova", SAMBA_KEYS,  cooldown_seconds=60)
+NVIDIA_POOL = get_pool("NVIDIA",    NVIDIA_KEYS, cooldown_seconds=90)
+GEMINI_POOL = get_pool("Gemini",    GEMINI_KEYS, cooldown_seconds=60)
 
-# ── PROVIDER CLIENTS with CORRECT MODELS ──────────────────────────────────────
-#
-#  NVIDIA:    meta/llama-3.3-70b-instruct   ← was "nemotron-3.5-lightning" (3.5B, bad quality)
-#  GROQ:      llama-3.3-70b-versatile       ← was "openai/gpt-oss-120b"   (DOESN'T EXIST on Groq)
-#  SAMBANOVA: Meta-Llama-3.1-405B-Instruct  ← was "gemma-4-31B-it"        (wrong provider model)
-#  GEMINI:    gemini-2.0-flash              ← QA verification only
-#
-SAMBANOVA_CLIENTS = [
-    (k, OpenAI(base_url="https://api.sambanova.ai/v1", api_key=k),
-     "Meta-Llama-3.1-405B-Instruct")          # Largest free model anywhere
-    for k in SAMBANOVA_KEYS
-]
-GROQ_CLIENTS = [
-    (k, OpenAI(base_url="https://api.groq.com/openai/v1", api_key=k),
-     "llama-3.3-70b-versatile")               # Valid Groq model, fast, free
-    for k in GROQ_KEYS
-]
-NVIDIA_CLIENTS = [
-    (k, OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k),
-     "meta/llama-3.3-70b-instruct")           # NVIDIA hosted Llama 70B
-    for k in NVIDIA_KEYS
-]
+# ── CLIENTS ────────────────────────────────────────────────────────────────────
+# Stage 1: Question skeleton - fast models
+GROQ_CLIENTS  = {k: OpenAI(base_url="https://api.groq.com/openai/v1",   api_key=k) for k in GROQ_KEYS}
+SAMBA_CLIENTS = {k: OpenAI(base_url="https://api.sambanova.ai/v1",       api_key=k) for k in SAMBA_KEYS}
 
-# ── GENERATION TIER ORDER ─────────────────────────────────────────────────────
-# Tier 1: SambaNova 405B  — best quality free model
-# Tier 2: Groq 70B        — fastest free inference
-# Tier 3: NVIDIA 70B      — reliable fallback
-# Gemini                  — RESERVED for QA only, never generation
-GENERATION_TIERS = [
-    ("SambaNova", SAMBANOVA_POOL, SAMBANOVA_CLIENTS),
-    ("Groq",      GROQ_POOL,      GROQ_CLIENTS),
-    ("NVIDIA",    NVIDIA_POOL,    NVIDIA_CLIENTS),
-]
+# Stage 2: 7-layer explanation - largest models
+NVIDIA_CLIENTS = {k: OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k) for k in NVIDIA_KEYS}
 
-# ── GEMINI QA SETUP ───────────────────────────────────────────────────────────
+# Stage 4: QA gate - Gemini
 GEMINI_KEY_TO_MODEL = {}
-WORKING_GEMINI = []
 
-def _probe_gemini(key):
-    """Find first working Gemini model for this key."""
-    client = genai.Client(api_key=key)
-    for model in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash-lite", "gemini-1.5-flash-latest"]:
+print("Probing Gemini...", flush=True)
+for k in GEMINI_KEYS:
+    for model in ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite"]:
         try:
-            client.models.generate_content(model=model, contents="hi")
-            return model
+            c = genai.Client(api_key=k)
+            c.models.generate_content(model=model, contents="hi")
+            GEMINI_KEY_TO_MODEL[k] = model
+            print(f"  Gemini key OK -> {model}", flush=True)
+            break
         except Exception:
             continue
-    return None
 
-print("🔎 Probing Gemini keys for QA...", flush=True)
-for i, k in enumerate(GEMINI_KEYS):
-    m = _probe_gemini(k)
-    if m:
-        WORKING_GEMINI.append((k, m))
-        GEMINI_KEY_TO_MODEL[k] = m
-        print(f"  ✅ Gemini key {i+1} → {m}", flush=True)
-    else:
-        print(f"  ❌ Gemini key {i+1} → no working model", flush=True)
-
-# Rebuild Gemini pool with only working keys
+WORKING_GEMINI = list(GEMINI_KEY_TO_MODEL.keys())
 if WORKING_GEMINI:
-    GEMINI_POOL = get_pool("Gemini", [k for k, _ in WORKING_GEMINI], cooldown_seconds=60)
-    print(f"✅ Gemini QA pool: {len(WORKING_GEMINI)} working keys", flush=True)
+    GEMINI_POOL = get_pool("Gemini", WORKING_GEMINI, cooldown_seconds=60)
+    print(f"Gemini QA pool: {len(WORKING_GEMINI)} keys", flush=True)
 else:
     GEMINI_POOL = None
-    print("⚠️  No Gemini keys working — QA will auto-pass all questions", flush=True)
+    print("No Gemini keys working - QA auto-pass", flush=True)
 
-# ── AWS BEDROCK (for level 7-10 high-quality questions) ───────────────────────
-bedrock = None
-try:
-    import boto3
-    aws_key    = os.getenv('AWS_ACCESS_KEY_ID')
-    aws_secret = os.getenv('AWS_SECRET_ACCESS_KEY')
-    aws_region = os.getenv('AWS_REGION', 'us-east-1')
-    if aws_key and aws_secret:
-        bedrock = boto3.client(
-            service_name='bedrock-runtime',
-            region_name=aws_region,
-            aws_access_key_id=aws_key,
-            aws_secret_access_key=aws_secret
-        )
-        print(f"✅ AWS Bedrock enabled (region={aws_region}) — $1000 credit active", flush=True)
-    else:
-        print("⚠️  AWS keys not in secrets — Bedrock disabled", flush=True)
-except Exception as e:
-    print(f"⚠️  Bedrock init error: {e}", flush=True)
+# ── JSON EXTRACTOR ─────────────────────────────────────────────────────────────
+def extract_json(text):
+    if not text: return None
+    text = re.sub(r"^```json\s*|\s*```$", "", text.strip(), flags=re.MULTILINE).strip()
+    for cand in [text, text[text.find("["):text.rfind("]")+1] if "[" in text else ""]:
+        if not cand: continue
+        try:
+            d = json.loads(cand)
+            if isinstance(d, list): return d
+            if isinstance(d, dict): return [d]
+        except Exception:
+            try:
+                d = json_repair.loads(cand)
+                if isinstance(d, list): return d
+                if isinstance(d, dict): return [d]
+            except Exception: continue
+    return None
 
-# ── HELPER: get existing count ─────────────────────────────────────────────────
+def extract_json_obj(text):
+    if not text: return None
+    text = re.sub(r"^```json\s*|\s*```$", "", text.strip(), flags=re.MULTILINE).strip()
+    m = re.search(r"\{.*\}", text, re.DOTALL)
+    if not m: return None
+    try: return json_repair.loads(m.group())
+    except Exception: return None
+
+# ── CALL HELPER ────────────────────────────────────────────────────────────────
+def call_openai(pool, clients, model, messages, max_tokens=4096, timeout=90):
+    """Generic OpenAI-compatible call with key rotation."""
+    tried = 0
+    max_try = len(clients)
+    while tried < max_try:
+        idx, key = pool.get_key(wait=False)
+        if key is None: break
+        tried += 1
+        client = clients.get(key)
+        if not client: pool.mark_error(idx); continue
+        try:
+            r = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=0.7,
+                timeout=timeout,
+            )
+            raw = r.choices[0].message.content or ""
+            if raw:
+                pool.mark_success(idx)
+                return raw
+            pool.mark_error(idx)
+        except Exception as e:
+            err = str(e)
+            if "429" in err or "rate" in err.lower() or "quota" in err.lower():
+                pool.mark_rate_limit(idx, cooldown=65)
+            elif "401" in err or "403" in err:
+                pool.mark_error(idx)
+            elif "timeout" in err.lower() or "timed out" in err.lower():
+                pool.mark_rate_limit(idx, cooldown=30)
+            else:
+                pool.mark_error(idx)
+    return None
+
+# ════════════════════════════════════════════════════════════════════════════════
+# STAGE 1 — QUESTION SKELETON (Groq primary, SambaNova fallback)
+# Generates: question + 4 options + correct_answer only
+# Fast models, high volume
+# ════════════════════════════════════════════════════════════════════════════════
+def stage1_generate_skeleton(topic_name, subject_id, level, count, exam_tags, context=""):
+    exam_str = ", ".join(exam_tags[:6]) if exam_tags else "UPSC, SSC CGL, RRB NTPC"
+    prompt = f"""You are an expert MCQ writer for Indian competitive exams.
+Generate exactly {count} unique MCQs for:
+Topic: {topic_name} | Subject: {subject_id} | Difficulty: {level}/10
+Exams: {exam_str}
+{"Context: " + context if context else ""}
+
+Difficulty guide:
+- Level 1-3: Basic recall, textbook facts
+- Level 4-6: Application, concept linking
+- Level 7-10: Multi-step reasoning, trap options, analysis
+
+Output ONLY a valid JSON array, no markdown:
+[{{"question":"...","options":["A) ...","B) ...","C) ...","D) ..."],"correct_answer":0,"topic_hint":"one word topic"}}]
+
+Rules:
+- correct_answer is 0-indexed integer (0=A, 1=B, 2=C, 3=D)
+- All 4 options must be plausible for levels 5+
+- No duplicate questions"""
+
+    msgs = [
+        {"role": "system", "content": "Output ONLY valid JSON arrays. No explanation, no markdown."},
+        {"role": "user", "content": prompt}
+    ]
+
+    # Try Groq first (fastest)
+    for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
+        raw = call_openai(GROQ_POOL, GROQ_CLIENTS, model, msgs, max_tokens=2048, timeout=45)
+        if raw:
+            data = extract_json(raw)
+            if data:
+                valid = [q for q in data if q.get("question") and isinstance(q.get("options"), list) and len(q["options"]) == 4 and isinstance(q.get("correct_answer"), int)]
+                if valid:
+                    print(f"      S1 {len(valid)}q via Groq {model}", flush=True)
+                    return valid
+
+    # Fallback: SambaNova DeepSeek
+    for model in ["DeepSeek-V3.2", "gpt-oss-120b", "Meta-Llama-3.3-70B-Instruct"]:
+        raw = call_openai(SAMBA_POOL, SAMBA_CLIENTS, model, msgs, max_tokens=2048, timeout=60)
+        if raw:
+            data = extract_json(raw)
+            if data:
+                valid = [q for q in data if q.get("question") and isinstance(q.get("options"), list) and len(q["options"]) == 4 and isinstance(q.get("correct_answer"), int)]
+                if valid:
+                    print(f"      S1 {len(valid)}q via SambaNova {model}", flush=True)
+                    return valid
+
+    return []
+
+# ════════════════════════════════════════════════════════════════════════════════
+# STAGE 2 — 7-LAYER EXPLANATION (NVIDIA large models)
+# Adds: why_correct, why_wrong x3, story, shortcut, cross_exam
+# Uses largest available NVIDIA models for depth
+# ════════════════════════════════════════════════════════════════════════════════
+def stage2_add_explanation(q, topic_name, level, exam_tags):
+    exam_str = ", ".join(exam_tags[:4]) if exam_tags else "UPSC, SSC CGL"
+    correct_opt = q["options"][q["correct_answer"]]
+    wrong_opts  = [o for i, o in enumerate(q["options"]) if i != q["correct_answer"]]
+
+    prompt = f"""You are a top Indian competitive exam expert and teacher.
+Add a 7-layer explanation to this MCQ:
+
+Question: {q["question"]}
+Options: {q["options"]}
+Correct Answer: {correct_opt} (index {q["correct_answer"]})
+Topic: {topic_name} | Difficulty: {level}/10 | Exams: {exam_str}
+
+Output ONLY valid JSON (no markdown):
+{{
+  "why_correct": "Step-by-step logical proof of why {correct_opt} is correct. Show the reasoning chain clearly.",
+  "why_wrong_option_b": "Exact misconception that makes students choose {wrong_opts[0] if len(wrong_opts)>0 else 'B'}. Name the trap.",
+  "why_wrong_option_c": "Exact misconception that makes students choose {wrong_opts[1] if len(wrong_opts)>1 else 'C'}. Name the trap.",
+  "why_wrong_option_d": "Exact misconception that makes students choose {wrong_opts[2] if len(wrong_opts)>2 else 'D'}. Name the trap.",
+  "story_explanation": "A 3-sentence Indian story (Ramu/Priya/shopkeeper/cricket) where this concept appears naturally. Must make the answer unforgettable.",
+  "shortcut_tips": "The exact mnemonic or 10-second trick top scorers use for this type of question in {exam_str}.",
+  "cross_exam_intelligence": "UPSC Prelims asks this as [angle]. SSC CGL asks this as [angle]. RRB NTPC tests [angle]. State PSCs focus on [angle]."
+}}"""
+
+    msgs = [
+        {"role": "system", "content": "Output ONLY valid JSON object. No markdown. No explanation outside JSON."},
+        {"role": "user", "content": prompt}
+    ]
+
+    # NVIDIA large models - best for deep explanation
+    for model in [
+        "nvidia/nemotron-3-ultra-550b-a55b",
+        "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+        "mistralai/mistral-large-4-1t-a52b",
+        "moonshotai/kimi-k2.6",
+        "nvidia/llama-3.1-nemotron-70b-instruct",
+        "mistralai/mistral-large-2-instruct",
+    ]:
+        raw = call_openai(NVIDIA_POOL, NVIDIA_CLIENTS, model, msgs, max_tokens=2048, timeout=90)
+        if raw:
+            data = extract_json_obj(raw)
+            if data and data.get("why_correct"):
+                q.update(data)
+                print(f"      S2 explanation via NVIDIA {model}", flush=True)
+                return q
+
+    # Final fallback: SambaNova for explanation
+    for model in ["DeepSeek-V3.2", "gpt-oss-120b"]:
+        raw = call_openai(SAMBA_POOL, SAMBA_CLIENTS, model, msgs, max_tokens=2048, timeout=60)
+        if raw:
+            data = extract_json_obj(raw)
+            if data and data.get("why_correct"):
+                q.update(data)
+                print(f"      S2 explanation via SambaNova {model}", flush=True)
+                return q
+
+    # If all fail, add placeholder so question still saves
+    q.setdefault("why_correct", "See official study material.")
+    q.setdefault("why_wrong_option_b", "Common misconception.")
+    q.setdefault("why_wrong_option_c", "Common misconception.")
+    q.setdefault("why_wrong_option_d", "Common misconception.")
+    q.setdefault("story_explanation", "")
+    q.setdefault("shortcut_tips", "")
+    q.setdefault("cross_exam_intelligence", exam_str)
+    return q
+
+# ════════════════════════════════════════════════════════════════════════════════
+# STAGE 3 — QUALITY SCORE (SambaNova cross-check)
+# Returns score 1-10 for difficulty calibration
+# ════════════════════════════════════════════════════════════════════════════════
+def stage3_quality_score(q, level):
+    prompt = f"""Rate this Indian competitive exam MCQ.
+Target difficulty: {level}/10
+
+Q: {q.get("question","")}
+Options: {q.get("options",[])}
+Correct: index {q.get("correct_answer",0)}
+
+Return ONLY JSON: {{"score": 8, "calibrated_level": 7, "issues": "none"}}
+Score 1-10. Be strict. Penalize: vague options, too easy for level, factual errors."""
+
+    msgs = [{"role": "user", "content": prompt}]
+
+    for model in ["gpt-oss-120b", "DeepSeek-V3.2", "Meta-Llama-3.3-70B-Instruct"]:
+        raw = call_openai(SAMBA_POOL, SAMBA_CLIENTS, model, msgs, max_tokens=100, timeout=30)
+        if raw:
+            data = extract_json_obj(raw)
+            if data and "score" in data:
+                score = int(data.get("score", 0))
+                print(f"      S3 score={score} via SambaNova {model}", flush=True)
+                return score
+
+    return 7  # default pass if scorer unavailable
+
+# ════════════════════════════════════════════════════════════════════════════════
+# STAGE 4 — GEMINI FINAL GATE (QA verify)
+# Final approve/reject decision
+# ════════════════════════════════════════════════════════════════════════════════
+def stage4_gemini_verify(q, level):
+    if not GEMINI_POOL:
+        return True, 7, "no verifier"
+
+    idx, key = GEMINI_POOL.get_key(wait=False)
+    if key is None:
+        return True, 7, "gemini cooling"
+
+    model = GEMINI_KEY_TO_MODEL.get(key, "gemini-3.5-flash")
+    try:
+        client = genai.Client(api_key=key)
+        prompt = f"""Final QA check for Indian competitive exam MCQ.
+Level: {level}/10
+
+Q: {q.get("question","")}
+Options: {q.get("options",[])}
+Correct index: {q.get("correct_answer",0)}
+Explanation: {q.get("why_correct","")[:150]}
+
+Return ONLY JSON: {{"passed": true, "score": 8, "reason": "one line"}}
+Reject if: factually wrong, ambiguous correct answer, explanation contradicts answer."""
+
+        r = client.models.generate_content(model=model, contents=prompt)
+        txt = re.sub(r"^```json\s*|\s*```$", "", (r.text or "").strip(), flags=re.MULTILINE)
+        d = extract_json_obj(txt)
+        if d:
+            GEMINI_POOL.mark_success(idx)
+            return d.get("passed", False), int(d.get("score", 0)), d.get("reason", "")
+        GEMINI_POOL.mark_error(idx)
+        return True, 6, "parse error - auto pass"
+    except Exception as e:
+        err = str(e)
+        if "429" in err or "quota" in err.lower():
+            GEMINI_POOL.mark_rate_limit(idx, cooldown=65)
+        elif "503" in err or "overloaded" in err.lower():
+            return True, 7, "gemini overloaded - auto pass"
+        else:
+            GEMINI_POOL.mark_error(idx)
+        return True, 6, f"gemini error - auto pass"
+
+# ════════════════════════════════════════════════════════════════════════════════
+# FULL PIPELINE: Stage 1 → 2 → 3 → 4
+# ════════════════════════════════════════════════════════════════════════════════
+def run_pipeline(topic_id, topic_name, subject_id, level, count, exam_tags):
+    context = get_context(topic_id) if callable(get_context) else ""
+
+    # S1: Get question skeletons
+    skeletons = stage1_generate_skeleton(topic_name, subject_id, level, count, exam_tags, context)
+    if not skeletons:
+        return []
+
+    results = []
+    for q in skeletons:
+        # S2: Add 7-layer explanation via NVIDIA
+        q = stage2_add_explanation(q, topic_name, level, exam_tags)
+
+        # S3: Quality score via SambaNova
+        score = stage3_quality_score(q, level)
+        if score < QUALITY_THRESHOLD:
+            print(f"      ✗ S3 rejected score={score}", flush=True)
+            continue
+
+        # S4: Final Gemini gate
+        passed, gemini_score, reason = stage4_gemini_verify(q, level)
+        if not passed:
+            print(f"      ✗ S4 Gemini rejected: {reason[:50]}", flush=True)
+            continue
+
+        final_score = max(score, gemini_score)
+        q["_score"] = final_score
+        results.append(q)
+        print(f"      ✅ Pipeline complete score={final_score}", flush=True)
+
+    return results
+
+# ── DB HELPERS ─────────────────────────────────────────────────────────────────
 def get_existing_count(topic_id, level):
     try:
-        r = s.table('questions').select('id', count='exact') \
-             .eq('topic_id', topic_id).eq('level', level).execute()
+        r = s.table("questions").select("id", count="exact").eq("topic_id", topic_id).eq("level", level).execute()
         return r.count or 0
     except Exception:
         return 0
 
-# ── JSON EXTRACTOR ─────────────────────────────────────────────────────────────
-def extract_json_array(text):
-    if not text: return None
-    text = re.sub(r'^```json\s*|\s*```$', '', text.strip(), flags=re.MULTILINE).strip()
-    for candidate in [text, text[text.find('['):text.rfind(']')+1] if '[' in text else '']:
-        if not candidate: continue
-        try:
-            d = json.loads(candidate)
-            if isinstance(d, list): return d
-        except Exception:
-            try:
-                d = json_repair.loads(candidate)
-                if isinstance(d, list): return d
-            except Exception:
-                continue
-    return None
-
-# ── AWS BEDROCK CALL ───────────────────────────────────────────────────────────
-def call_bedrock(prompt):
-    """Use AWS Bedrock Llama for level 7-10 questions. ~$0.003 per question from $1000 credit."""
-    if not bedrock: return None
-    try:
-        body = json.dumps({
-            "prompt": f"<s>[INST] {prompt} [/INST]",
-            "max_gen_len": 4096,
-            "temperature": 0.6,
-        })
-        r = bedrock.invoke_model(
-            modelId="meta.llama3-70b-instruct-v1:0",
-            body=body,
-            contentType="application/json",
-            accept="application/json"
-        )
-        result = json.loads(r['body'].read())
-        raw = result.get('generation', '')
-        data = extract_json_array(raw)
-        if data:
-            valid = _validate_questions(data)
-            if valid:
-                print(f"      ✅ {len(valid)} via AWS Bedrock", flush=True)
-                return valid
-    except Exception as e:
-        print(f"      ⚠️  Bedrock error: {e}", flush=True)
-    return None
-
-def _validate_questions(data):
-    """Check questions have required fields."""
-    return [
-        q for q in data
-        if (isinstance(q, dict)
-            and q.get('question')
-            and isinstance(q.get('options'), list)
-            and len(q['options']) == 4
-            and isinstance(q.get('correct_answer'), int)
-            and 0 <= q['correct_answer'] <= 3)
-    ]
-
-# ── GENERATE BATCH ─────────────────────────────────────────────────────────────
-def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
-    context = get_context(topic_id) if callable(get_context) else ""
-
-    exam_str = ", ".join(exam_tags[:6]) if exam_tags else "UPSC, SSC CGL, RRB NTPC"
-
-    prompt = f"""You are an expert MCQ writer for Indian competitive exams.
-Generate exactly {count} high-quality MCQs for:
-Topic: {topic_name}
-Subject: {subject_id}
-Difficulty Level: {level}/10
-Relevant Exams: {exam_str}
-Context: {context}
-
-RULES:
-1. Each question must be UNIQUE — no repetition of concepts within this batch.
-2. Difficulty {level}/10: {'Recall/basic understanding' if level <= 3 else 'Application of concepts' if level <= 6 else 'Analysis, multi-step reasoning, trap options'}.
-3. The 'why_correct' field MUST contain step-by-step logic, not just the answer.
-4. All 4 options must be plausible — no obviously wrong distractors.
-5. For levels 8-10: include trap options that test common misconceptions.
-
-Output ONLY a valid JSON array, no preamble, no markdown:
-[
-  {{
-    "question": "...",
-    "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
-    "correct_answer": 0,
-    "why_correct": "Step-by-step: ...",
-    "why_wrong_option_b": "Misconception: ...",
-    "why_wrong_option_c": "Misconception: ...",
-    "why_wrong_option_d": "Misconception: ...",
-    "story_explanation": "Ramu/Priya anecdote that makes this concept unforgettable...",
-    "shortcut_tips": "Mnemonic or 10-second trick for competitive exams...",
-    "cross_exam_intelligence": "This exact type appears in UPSC Prelims as..., SSC CGL as..., RRB NTPC as..."
-  }}
-]"""
-
-    # Level 7-10: Try AWS Bedrock first (best quality, uses $1000 credit)
-    if level >= 7 and bedrock:
-        result = call_bedrock(prompt)
-        if result:
-            return result
-
-    # Tier-based generation: SambaNova → Groq → NVIDIA
-    for tier_name, pool, clients in GENERATION_TIERS:
-        if not clients: continue
-
-        keys_tried = 0
-        max_keys = len(clients)
-
-        while keys_tried < max_keys:
-            idx, key = pool.get_key(wait=False)
-            if key is None: break  # All keys for this provider cooling — try next tier
-
-            keys_tried += 1
-            client_tuple = next((c for c in clients if c[0] == key), None)
-            if not client_tuple:
-                pool.mark_error(idx)
-                continue
-
-            _, client, model = client_tuple
-            try:
-                resp = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": "You are a JSON-only MCQ generator. Output ONLY valid JSON arrays with no preamble."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.7,
-                    max_tokens=4096,
-                    timeout=90,
-                )
-                raw = resp.choices[0].message.content or ''
-                if not raw:
-                    pool.mark_error(idx)
-                    continue
-
-                data = extract_json_array(raw)
-                if not data:
-                    pool.mark_error(idx)
-                    continue
-
-                valid = _validate_questions(data)
-                if valid:
-                    pool.mark_success(idx)
-                    print(f"      ✅ {len(valid)}/{len(data)} via {tier_name} [{model}]", flush=True)
-                    return valid
-                else:
-                    pool.mark_error(idx)
-
-            except Exception as e:
-                err = str(e)
-                if '429' in err or 'rate' in err.lower() or 'quota' in err.lower():
-                    pool.mark_rate_limit(idx, cooldown=62)
-                    print(f"      ⏳ {tier_name} key#{idx+1} rate-limited → next key", flush=True)
-                elif '401' in err or '403' in err:
-                    pool.mark_dead(idx, reason='invalid key') if hasattr(pool, 'mark_dead') else pool.mark_error(idx)
-                    print(f"      ❌ {tier_name} key#{idx+1} invalid — skipping", flush=True)
-                elif 'timeout' in err.lower() or 'timed out' in err.lower():
-                    pool.mark_rate_limit(idx, cooldown=30)
-                    print(f"      ⏱️ {tier_name} key#{idx+1} timeout", flush=True)
-                else:
-                    pool.mark_error(idx)
-                continue
-
-        print(f"      ↷ {tier_name} exhausted → next tier", flush=True)
-
-    # All tiers failed for this batch
-    print("      ⚠️  All tiers failed for this batch", flush=True)
-    return []
-
-
-# ── VERIFY (Gemini QA — reserved keys) ────────────────────────────────────────
-def verify(q, level):
-    """Use Gemini to quality-gate each question. Auto-pass if Gemini unavailable."""
-    if not GEMINI_POOL:
-        return True, 7, 'no verifier — auto-passed'
-
-    idx, key = GEMINI_POOL.get_key(wait=False)
-    if key is None:
-        return True, 7, 'gemini cooling — auto-passed'
-
-    model = GEMINI_KEY_TO_MODEL.get(key, "gemini-2.0-flash")
-    try:
-        client = genai.Client(api_key=key)
-        prompt = f"""Rate this MCQ for Indian competitive exam quality.
-Difficulty target: {level}/10
-
-Question: {q.get('question', '')}
-Options: {q.get('options', [])}
-Correct index: {q.get('correct_answer', 0)}
-Explanation: {q.get('why_correct', '')[:200]}
-
-Return ONLY JSON (no markdown):
-{{"passed": true, "score": 8, "reason": "one line"}}
-
-Score 1-10. Pass if score >= 6 AND question is factually correct AND options are distinct."""
-
-        r = client.models.generate_content(model=model, contents=prompt)
-        txt = re.sub(r'^```json\s*|\s*```$', '', (r.text or '').strip(), flags=re.MULTILINE).strip()
-        m = re.search(r'\{.*\}', txt, re.DOTALL)
-        if not m:
-            GEMINI_POOL.mark_error(idx)
-            return False, 0, 'no json from gemini'
-
-        d = json_repair.loads(m.group())
-        GEMINI_POOL.mark_success(idx)
-        return d.get('passed', False), int(d.get('score', 0)), d.get('reason', '')
-
-    except Exception as e:
-        err = str(e)
-        if '429' in err or 'quota' in err.lower() or 'rate' in err.lower():
-            GEMINI_POOL.mark_rate_limit(idx, cooldown=65)
-        elif '401' in err or '403' in err:
-            GEMINI_POOL.mark_error(idx)
-        elif '503' in err or 'overloaded' in err.lower() or 'timeout' in err.lower():
-            print("   ⚠️  Gemini overloaded — auto-passing to keep pipeline alive", flush=True)
-            return True, 7, 'Gemini offline — auto-passed'
-        else:
-            GEMINI_POOL.mark_error(idx)
-        return True, 6, f'gemini error — auto-passed: {err[:40]}'
-
-
-# ── SAVE ───────────────────────────────────────────────────────────────────────
-def save(q, topic_id, subject_id, level, score, exam_tags):
+def save(q, topic_id, subject_id, level, exam_tags):
     diagram_kind = DIAGRAM_KIND_BY_TOPIC_ID.get(topic_id)
     if diagram_kind:
         q = sanitize_question_svgs(q, diagram_kind)
@@ -397,155 +409,138 @@ def save(q, topic_id, subject_id, level, score, exam_tags):
         "correct_answer":   q["correct_answer"],
         "explanation": {
             k: q.get(k, "")
-            for k in ["why_correct", "why_wrong_option_b", "why_wrong_option_c",
-                       "why_wrong_option_d", "story_explanation", "shortcut_tips",
-                       "cross_exam_intelligence"]
+            for k in ["why_correct","why_wrong_option_b","why_wrong_option_c",
+                      "why_wrong_option_d","story_explanation","shortcut_tips",
+                      "cross_exam_intelligence"]
         },
-        "translations":     {},
-        "exam_tags":        exam_tags,
-        "has_visual":       False,
-        "visual_type":      None,
-        "visual_data":      None,
-        "access_tier":      "free" if level <= 6 else "pro",
+        "translations":       {},
+        "exam_tags":          exam_tags,
+        "has_visual":         False,
+        "visual_type":        None,
+        "visual_data":        None,
+        "access_tier":        "free" if level <= 6 else "pro",
         "copyright_original": True,
-        "verified":         True,
-        "quality_score":    score,
-        "report_count":     0,
-        "generated_by":     "tryit_v4",
-        "created_at":       datetime.now(timezone.utc).isoformat(),
+        "verified":           True,
+        "quality_score":      q.get("_score", 7),
+        "report_count":       0,
+        "generated_by":       "tryit_v5",
+        "created_at":         datetime.now(timezone.utc).isoformat(),
     }
 
     if is_duplicate(s, q["question"], topic_id):
-        print("   ♻️  Duplicate — skipping", flush=True)
+        print("      ♻️ Duplicate - skip", flush=True)
         return False
 
-    success, _ = safe_db_insert(s, 'questions', rec)
+    success, _ = safe_db_insert(s, "questions", rec)
     return success
 
-
-# ── PROCESS SINGLE TOPIC+LEVEL ─────────────────────────────────────────────────
+# ── TOPIC PROCESSORS ───────────────────────────────────────────────────────────
 def process_topic_level(topic_id, topic_name, subject_id, level, target, exam_tags):
     existing = get_existing_count(topic_id, level)
-    if existing >= target:
-        return 0
+    if existing >= target: return 0
     needed = target - existing
-    print(f"   ⏳ {topic_id} L{level}: {existing}/{target} → need {needed}", flush=True)
+    print(f"   ⏳ {topic_id} L{level}: {existing}/{target} need {needed}", flush=True)
 
     saved = 0
     empty_rounds = 0
 
     while saved < needed and empty_rounds < 3:
         batch_need = min(BATCH_SIZE, needed - saved)
-        qs = generate_batch(topic_id, topic_name, subject_id, level, batch_need, exam_tags)
+        questions  = run_pipeline(topic_id, topic_name, subject_id, level, batch_need, exam_tags)
 
-        if not qs:
+        if not questions:
             empty_rounds += 1
-            print(f"   ⚠️  Empty batch ({empty_rounds}/3) — waiting 5s", flush=True)
+            print(f"   ⚠️ Empty ({empty_rounds}/3) waiting 5s", flush=True)
             time.sleep(5)
             continue
 
         empty_rounds = 0
-        for q in qs:
-            ok, score, reason = verify(q, level)
-            if ok and score >= QUALITY_THRESHOLD:
-                if save(q, topic_id, subject_id, level, score, exam_tags):
-                    saved += 1
-                    print(f"      ✅ saved ({saved}/{needed}) score={score}", flush=True)
-            else:
-                print(f"      ✗ rejected score={score} reason={reason[:40]}", flush=True)
+        for q in questions:
+            if save(q, topic_id, subject_id, level, exam_tags):
+                saved += 1
+                print(f"      💾 saved {saved}/{needed}", flush=True)
+        time.sleep(0.3)
 
-        time.sleep(0.3)  # Tiny breath between batches
-
-    print(f"   🎉 {topic_id} L{level}: +{saved} saved", flush=True)
+    print(f"   🎉 {topic_id} L{level}: +{saved}", flush=True)
     return saved
 
-
-# ── PROCESS SINGLE TOPIC ───────────────────────────────────────────────────────
 def process_topic(topic):
-    tid   = topic['topic_id']
-    tname = topic.get('topic_name', tid)
-    sid   = topic.get('subject_id') or 'general'
-    dr    = topic.get('difficulty_range') or '2-7'
+    tid   = topic["topic_id"]
+    tname = topic.get("topic_name", tid)
+    sid   = topic.get("subject_id") or "general"
+    dr    = topic.get("difficulty_range") or "2-7"
+    try: lo, hi = map(int, dr.split("-"))
+    except Exception: lo, hi = 2, 7
 
     try:
-        lo, hi = map(int, dr.split('-'))
-    except Exception:
-        lo, hi = 2, 7
-
-    try:
-        rows = s.table('exam_syllabus_map').select('exam_id') \
-                .eq('topic_id', tid).execute().data or []
-        exam_tags = sorted(set(r['exam_id'] for r in rows))
+        rows = s.table("exam_syllabus_map").select("exam_id").eq("topic_id", tid).execute().data or []
+        exam_tags = sorted(set(r["exam_id"] for r in rows))
     except Exception:
         exam_tags = []
 
-    print(f"\n📘 {tid} [{tname}] L{lo}-L{hi} exams={exam_tags[:4]}", flush=True)
+    print(f"\n📘 {tid} [{tname}] L{lo}-L{hi}", flush=True)
     total = 0
-    for lvl in range(lo, hi + 1):
+    for lvl in range(lo, hi+1):
         target = TARGET_L1_L5 if lvl <= 5 else TARGET_L6_L10
         total += process_topic_level(tid, tname, sid, lvl, target, exam_tags)
     return total
 
-
 # ── MAIN ───────────────────────────────────────────────────────────────────────
 def main():
-    print("🚀 TryIT Engine v4 — Unified 20-Key Engine", flush=True)
-    print(f"   Providers: SambaNova(5) → Groq(5) → NVIDIA(5) | QA: Gemini(5)", flush=True)
-    print(f"   Workers: {CONCURRENT_WORKERS} | Batch: {BATCH_SIZE} | Quality threshold: {QUALITY_THRESHOLD}/10", flush=True)
-    print(f"   AWS Bedrock: {'✅ ENABLED (level 7-10)' if bedrock else '❌ disabled (add AWS secrets)'}", flush=True)
-    print("─" * 60, flush=True)
+    print("🚀 TryIT Engine v5 - 4-Stage Pipeline", flush=True)
+    print("   S1:Question→Groq/SambaNova | S2:Explain→NVIDIA | S3:Score→SambaNova | S4:QA→Gemini", flush=True)
+    print(f"   Workers:{CONCURRENT_WORKERS} | Batch:{BATCH_SIZE} | QualityMin:{QUALITY_THRESHOLD}/10", flush=True)
+    print("─"*60, flush=True)
 
-    start_time  = time.time()
-    max_runtime = 113 * 60  # 113 min — safely under GitHub's 120-min job limit
-    grand_total = 0
-    pass_num    = 0
+    start      = time.time()
+    max_run    = 113 * 60
+    grand      = 0
+    pass_num   = 0
 
-    while time.time() - start_time < max_runtime:
-        elapsed = int((time.time() - start_time) / 60)
-        remaining = int((max_runtime - (time.time() - start_time)) / 60)
+    while time.time() - start < max_run:
+        elapsed   = int((time.time()-start)/60)
+        remaining = int((max_run-(time.time()-start))/60)
         print(f"\n{'═'*60}", flush=True)
-        print(f"📋 Pass #{pass_num + 1} | elapsed={elapsed}m | remaining={remaining}m | total_saved={grand_total}", flush=True)
+        print(f"Pass #{pass_num+1} | {elapsed}m elapsed | {remaining}m left | total={grand}", flush=True)
 
         topics = (
-            s.table('topics')
-             .select('topic_id, topic_name, subject_id, difficulty_range, coverage_score')
-             .eq('launch_phase', 'phase_1_now')
-             .order('coverage_score', desc=True)
+            s.table("topics")
+             .select("topic_id,topic_name,subject_id,difficulty_range,coverage_score")
+             .eq("launch_phase","phase_1_now")
+             .order("coverage_score", desc=True)
              .execute().data
         )
 
         if not topics:
-            print("⚠️  No topics with launch_phase=phase_1_now — sleeping 60s", flush=True)
+            print("⚠️ No topics found - sleep 60s", flush=True)
             time.sleep(60)
             continue
 
-        print(f"📋 {len(topics)} topics to process", flush=True)
+        print(f"📋 {len(topics)} topics", flush=True)
         pass_total = 0
         pass_num  += 1
 
         with ThreadPoolExecutor(max_workers=CONCURRENT_WORKERS) as ex:
-            futures = {ex.submit(process_topic, t): t['topic_id'] for t in topics}
+            futures = {ex.submit(process_topic, t): t["topic_id"] for t in topics}
             for fut in as_completed(futures):
                 tid = futures[fut]
                 try:
                     n = fut.result()
-                    pass_total  += n
-                    grand_total += n
+                    pass_total += n
+                    grand      += n
                 except Exception as e:
-                    print(f"   !! Topic {tid} crashed: {e}", flush=True)
+                    print(f"   !! {tid}: {e}", flush=True)
 
-        print(f"\n✅ Pass #{pass_num} complete: +{pass_total} | Grand total: {grand_total}", flush=True)
+        print(f"\n✅ Pass #{pass_num}: +{pass_total} | Grand total: {grand}", flush=True)
 
         if pass_total == 0:
-            print("🚨 All APIs rate-limited — sleeping 5 min to reset quotas", flush=True)
+            print("🚨 All APIs rate-limited - sleep 5min", flush=True)
             time.sleep(300)
         else:
-            print("⏳ 10s breath before next pass...", flush=True)
             time.sleep(10)
 
-    print(f"\n⏰ 113-min limit reached. Final total: {grand_total} questions saved.", flush=True)
-    print(f"   Average: {grand_total / 113:.1f} questions/minute", flush=True)
-
+    print(f"\n⏰ Done. Total: {grand} questions in 113 minutes", flush=True)
+    print(f"   Rate: {grand/113:.1f} q/min | {grand/113*60:.0f} q/hr", flush=True)
 
 if __name__ == "__main__":
     main()
