@@ -163,7 +163,7 @@ def call_api(pool, clients, model, messages, max_tokens=4096, timeout=90, provid
 # Saves Groq RPD budget (1 call per question not 2)
 # ══════════════════════════════════════════════════════════════════════════════
 def generate_full_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
-    context  = get_context(topic_id) if callable(get_context) else ""
+    context  = get_context(topic_id, subject_id) if callable(get_context) else ""
     exam_str = ", ".join(exam_tags[:5]) if exam_tags else "UPSC, SSC CGL, RRB NTPC, State PSC"
 
     prompt = f"""You are India's top competitive exam question writer with 20 years experience.
@@ -504,6 +504,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
