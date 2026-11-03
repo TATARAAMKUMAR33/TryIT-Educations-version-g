@@ -16,53 +16,62 @@ jobs:
       - name: Create env
         run: |
           cat > .env << ENVEOF
-          SAMBANOVA_API_KEY_1=${{ secrets.SAMBANOVA_API_KEY_1 }}
-          NVIDIA_API_KEY_1=${{ secrets.NVIDIA_API_KEY_1 }}
+          OPENAI_API_KEY_1=${{ secrets.OPENAI_API_KEY_1 }}
+          OPENAI_API_KEY_2=${{ secrets.OPENAI_API_KEY_2 }}
+          OPENAI_API_KEY_3=${{ secrets.OPENAI_API_KEY_3 }}
           ENVEOF
 
-      - name: Write test script
+      - name: Check OpenAI keys
         run: |
-          cat > test_providers.py << 'PYEOF'
-          import os, requests
+          cat > check.py << 'PYEOF'
+          import os
           from dotenv import load_dotenv
           load_dotenv()
 
-          # SAMBANOVA - list all available models
-          samba_key = os.getenv("SAMBANOVA_API_KEY_1","")
-          print(f"\n=== SAMBANOVA LIVE MODEL LIST (key length: {len(samba_key)}) ===")
-          if samba_key:
-              try:
-                  r = requests.get(
-                      "https://api.sambanova.ai/v1/models",
-                      headers={"Authorization": f"Bearer {samba_key}"},
-                      timeout=15
-                  )
-                  data = r.json()
-                  models = [m["id"] for m in data.get("data", [])]
-                  print(f"  Found {len(models)} models:")
-                  for m in models:
-                      print(f"    - {m}")
-              except Exception as e:
-                  print(f"  ERROR: {e}")
+          for i in range(1,4):
+              key = os.getenv(f"OPENAI_API_KEY_{i}","")
+              if not key:
+                  print(f"Key {i}: NOT IN SECRETS")
+                  continue
 
-          # NVIDIA - list all available models
-          nvidia_key = os.getenv("NVIDIA_API_KEY_1","")
-          print(f"\n=== NVIDIA LIVE MODEL LIST (key length: {len(nvidia_key)}) ===")
-          if nvidia_key:
+              prefix = key[:8]
+              length = len(key)
+
+              # Identify by prefix
+              if key.startswith("sk-or-"):
+                  source = "OpenRouter"
+                  base_url = "https://openrouter.ai/api/v1"
+              elif key.startswith("github_pat") or key.startswith("ghp_"):
+                  source = "GitHub Models"
+                  base_url = "https://models.inference.ai.azure.com"
+              elif key.startswith("sk-proj") or key.startswith("sk-"):
+                  source = "Real OpenAI"
+                  base_url = "https://api.openai.com/v1"
+              else:
+                  source = "Unknown"
+                  base_url = "https://api.openai.com/v1"
+
+              print(f"Key {i}: prefix={prefix} len={length} source={source}")
+
+              # Test it
+              from openai import OpenAI
               try:
-                  r = requests.get(
-                      "https://integrate.api.nvidia.com/v1/models",
-                      headers={"Authorization": f"Bearer {nvidia_key}"},
-                      timeout=15
+                  client = OpenAI(base_url=base_url, api_key=key)
+                  if source == "GitHub Models":
+                      model = "gpt-4o-mini"
+                  elif source == "OpenRouter":
+                      model = "openai/gpt-4o-mini"
+                  else:
+                      model = "gpt-4o-mini"
+
+                  r = client.chat.completions.create(
+                      model=model,
+                      messages=[{"role":"user","content":"Say OK"}],
+                      max_tokens=5, timeout=15
                   )
-                  data = r.json()
-                  models = [m["id"] for m in data.get("data", [])]
-                  print(f"  Found {len(models)} models:")
-                  for m in sorted(models):
-                      print(f"    - {m}")
+                  print(f"  RESULT: OK via {source} model={model}")
+                  print(f"  REPLY: {r.choices[0].message.content}")
               except Exception as e:
-                  print(f"  ERROR: {e}")
+                  print(f"  RESULT: FAIL - {str(e)[:100]}")
           PYEOF
-
-      - name: Run test
-        run: python3 test_providers.py
+          python3 check.py
