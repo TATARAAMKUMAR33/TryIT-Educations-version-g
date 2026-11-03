@@ -1,0 +1,122 @@
+﻿name: Live Key Health Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install openai google-genai python-dotenv requests
+
+      - name: Create env
+        run: |
+          cat > .env << ENVEOF
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+          GROQ_API_KEY_1=${{ secrets.GROQ_API_KEY_1 }}
+          GROQ_API_KEY_2=${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3=${{ secrets.GROQ_API_KEY_3 }}
+          GROQ_API_KEY_4=${{ secrets.GROQ_API_KEY_4 }}
+          GROQ_API_KEY_5=${{ secrets.GROQ_API_KEY_5 }}
+          GEMINI_API_KEY_1=${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2=${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3=${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4=${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5=${{ secrets.GEMINI_API_KEY_5 }}
+          NVIDIA_API_KEY_1=${{ secrets.NVIDIA_API_KEY_1 }}
+          NVIDIA_API_KEY_2=${{ secrets.NVIDIA_API_KEY_2 }}
+          NVIDIA_API_KEY_3=${{ secrets.NVIDIA_API_KEY_3 }}
+          NVIDIA_API_KEY_4=${{ secrets.NVIDIA_API_KEY_4 }}
+          NVIDIA_API_KEY_5=${{ secrets.NVIDIA_API_KEY_5 }}
+          SAMBANOVA_API_KEY_1=${{ secrets.SAMBANOVA_API_KEY_1 }}
+          SAMBANOVA_API_KEY_2=${{ secrets.SAMBANOVA_API_KEY_2 }}
+          SAMBANOVA_API_KEY_3=${{ secrets.SAMBANOVA_API_KEY_3 }}
+          SAMBANOVA_API_KEY_4=${{ secrets.SAMBANOVA_API_KEY_4 }}
+          SAMBANOVA_API_KEY_5=${{ secrets.SAMBANOVA_API_KEY_5 }}
+          ENVEOF
+
+      - name: Health check script
+        run: |
+          cat > health.py << 'PYEOF'
+          import os, requests
+          from dotenv import load_dotenv
+          from datetime import datetime, timezone
+          load_dotenv()
+
+          u = os.getenv('SUPABASE_URL')
+          k = os.getenv('SUPABASE_KEY')
+          h = {'apikey': k, 'Authorization': f'Bearer {k}'}
+          today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+
+          def count(url):
+              try:
+                  cr = requests.get(url, headers={**h,'Prefer':'count=exact','Range':'0-0'}, timeout=10).headers.get('content-range','0/0')
+                  return cr.split('/')[-1]
+              except: return '?'
+
+          print('=== QUESTIONS GENERATED ===')
+          print(f'Total all time : {count(f"{u}/rest/v1/questions?select=id")}')
+          print(f'Total today    : {count(f"{u}/rest/v1/questions?select=id&created_at=gte.{today}")}')
+          print(f'v6 today       : {count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v6&created_at=gte.{today}")}')
+          print(f'v5 today       : {count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v5&created_at=gte.{today}")}')
+          print(f'v3 today       : {count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v3&created_at=gte.{today}")}')
+
+          def api_test(url, headers, payload):
+              try:
+                  r = requests.post(url, headers=headers, json=payload, timeout=10)
+                  if r.status_code == 200: return '✅ OK'
+                  if r.status_code == 429: return '⚠️  RATE LIMITED'
+                  return f'❌ {r.status_code}: {r.text[:50]}'
+              except Exception as e: return f'❌ {str(e)[:50]}'
+
+          print()
+          print('=== GROQ (org-wide 1K RPD) ===')
+          for i in range(1,6):
+              key = os.getenv(f'GROQ_API_KEY_{i}','')
+              if not key: print(f'  Key {i}: NOT IN SECRETS'); continue
+              r = api_test('https://api.groq.com/openai/v1/chat/completions',
+                  {'Authorization':f'Bearer {key}','Content-Type':'application/json'},
+                  {'model':'openai/gpt-oss-120b','messages':[{'role':'user','content':'hi'}],'max_tokens':1})
+              print(f'  Key {i} (len={len(key)}): {r}')
+
+          print()
+          print('=== GEMINI (500 RPD per key) ===')
+          from google import genai
+          for i in range(1,6):
+              key = os.getenv(f'GEMINI_API_KEY_{i}','')
+              if not key: print(f'  Key {i}: NOT IN SECRETS'); continue
+              try:
+                  genai.Client(api_key=key).models.generate_content(model='gemini-3.5-flash', contents='hi')
+                  print(f'  Key {i} (len={len(key)}): ✅ OK')
+              except Exception as e:
+                  status = '⚠️  RATE LIMITED' if '429' in str(e) else f'❌ {str(e)[:60]}'
+                  print(f'  Key {i} (len={len(key)}): {status}')
+
+          print()
+          print('=== NVIDIA (finite credits) ===')
+          for i in range(1,6):
+              key = os.getenv(f'NVIDIA_API_KEY_{i}','')
+              if not key: print(f'  Key {i}: NOT IN SECRETS'); continue
+              r = api_test('https://integrate.api.nvidia.com/v1/chat/completions',
+                  {'Authorization':f'Bearer {key}','Content-Type':'application/json'},
+                  {'model':'nvidia/nemotron-3-ultra-550b-a55b','messages':[{'role':'user','content':'hi'}],'max_tokens':1})
+              print(f'  Key {i} (len={len(key)}): {r}')
+
+          print()
+          print('=== SAMBANOVA (20 RPD per key = 100/day total) ===')
+          for i in range(1,6):
+              key = os.getenv(f'SAMBANOVA_API_KEY_{i}','')
+              if not key: print(f'  Key {i}: NOT IN SECRETS'); continue
+              r = api_test('https://api.sambanova.ai/v1/chat/completions',
+                  {'Authorization':f'Bearer {key}','Content-Type':'application/json'},
+                  {'model':'DeepSeek-V3.2','messages':[{'role':'user','content':'hi'}],'max_tokens':1})
+              print(f'  Key {i} (len={len(key)}): {r}')
+          PYEOF
+
+      - name: Run health check
+        run: python3 health.py
