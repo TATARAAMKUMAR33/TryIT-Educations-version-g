@@ -370,12 +370,49 @@ def get_context(topic_id="", subject_id=""):
     world = get_subject_world(subject_id or topic_id or "")
 
     name      = random.choice(NAMES)
-    city      = random.choice(CITIES)
-    state     = random.choice(STATES)
+    # Pair city and state correctly by region
+    CITY_STATE_PAIRS = [
+        ("Mumbai","Maharashtra"),("Pune","Maharashtra"),("Nagpur","Maharashtra"),("Nashik","Maharashtra"),
+        ("Delhi","Delhi"),("Agra","Uttar Pradesh"),("Lucknow","Uttar Pradesh"),("Varanasi","Uttar Pradesh"),
+        ("Kanpur","Uttar Pradesh"),("Gorakhpur","Uttar Pradesh"),("Mathura","Uttar Pradesh"),("Ayodhya","Uttar Pradesh"),
+        ("Bengaluru","Karnataka"),("Mysuru","Karnataka"),("Mangaluru","Karnataka"),("Hubli","Karnataka"),
+        ("Chennai","Tamil Nadu"),("Madurai","Tamil Nadu"),("Coimbatore","Tamil Nadu"),("Thanjavur","Tamil Nadu"),
+        ("Tiruchirappalli","Tamil Nadu"),("Vellore","Tamil Nadu"),("Salem","Tamil Nadu"),("Erode","Tamil Nadu"),
+        ("Hyderabad","Telangana"),("Warangal","Telangana"),("Karimnagar","Telangana"),("Nizamabad","Telangana"),
+        ("Kolkata","West Bengal"),("Howrah","West Bengal"),("Durgapur","West Bengal"),("Siliguri","West Bengal"),
+        ("Jaipur","Rajasthan"),("Jodhpur","Rajasthan"),("Udaipur","Rajasthan"),("Ajmer","Rajasthan"),
+        ("Jaisalmer","Rajasthan"),("Bikaner","Rajasthan"),("Kota","Rajasthan"),("Alwar","Rajasthan"),
+        ("Ahmedabad","Gujarat"),("Surat","Gujarat"),("Vadodara","Gujarat"),("Rajkot","Gujarat"),("Dwarka","Gujarat"),
+        ("Patna","Bihar"),("Gaya","Bihar"),("Muzaffarpur","Bihar"),("Bhagalpur","Bihar"),("Darbhanga","Bihar"),
+        ("Bhopal","Madhya Pradesh"),("Indore","Madhya Pradesh"),("Jabalpur","Madhya Pradesh"),("Gwalior","Madhya Pradesh"),
+        ("Bhubaneswar","Odisha"),("Cuttack","Odisha"),("Rourkela","Odisha"),("Puri","Odisha"),
+        ("Ranchi","Jharkhand"),("Jamshedpur","Jharkhand"),("Dhanbad","Jharkhand"),("Bokaro","Jharkhand"),
+        ("Amritsar","Punjab"),("Ludhiana","Punjab"),("Jalandhar","Punjab"),("Patiala","Punjab"),
+        ("Chandigarh","Haryana"),("Faridabad","Haryana"),("Gurugram","Haryana"),("Panipat","Haryana"),
+        ("Visakhapatnam","Andhra Pradesh"),("Vijayawada","Andhra Pradesh"),("Guntur","Andhra Pradesh"),("Tirupati","Andhra Pradesh"),
+        ("Thiruvananthapuram","Kerala"),("Kochi","Kerala"),("Kozhikode","Kerala"),("Thrissur","Kerala"),
+        ("Guwahati","Assam"),("Dibrugarh","Assam"),("Silchar","Assam"),("Jorhat","Assam"),
+        ("Raipur","Chhattisgarh"),("Bhilai","Chhattisgarh"),("Bilaspur","Chhattisgarh"),
+        ("Dehradun","Uttarakhand"),("Haridwar","Uttarakhand"),("Nainital","Uttarakhand"),("Rishikesh","Uttarakhand"),
+        ("Shimla","Himachal Pradesh"),("Manali","Himachal Pradesh"),("Dharamsala","Himachal Pradesh"),
+        ("Srinagar","Jammu & Kashmir"),("Jammu","Jammu & Kashmir"),("Leh","Ladakh"),
+        ("Shillong","Meghalaya"),("Imphal","Manipur"),("Aizawl","Mizoram"),("Kohima","Nagaland"),
+        ("Itanagar","Arunachal Pradesh"),("Gangtok","Sikkim"),("Agartala","Tripura"),
+        ("Panaji","Goa"),("Silvassa","Dadra & NH"),("Daman","Daman & Diu"),
+        ("Rampur village","Uttar Pradesh"),("Krishnapur","Bihar"),("Sundarpur","West Bengal"),
+        ("Anandnagar","Maharashtra"),("Shantipuram","Tamil Nadu"),("Gopalganj village","Bihar"),
+        ("Nandgaon","Uttar Pradesh"),("Govindpur","Jharkhand"),("Dharmapur","Karnataka"),
+    ]
+    city_state = random.choice(CITY_STATE_PAIRS)
+    city  = city_state[0]
+    state = city_state[1]
     festival  = random.choice(FESTIVALS)
     food      = random.choice(FOODS_ALL)
     river     = random.choice(RIVERS)
-    character = random.choice(world["characters"]) if world["characters"] else random.choice(OCCUPATIONS)
+    # Never use sports stars as character role — use proper roles only
+    raw_char = random.choice(world["characters"]) if world["characters"] else random.choice(OCCUPATIONS)
+    SPORTS_ROLES = ["young cricket player","school sports teacher","kabaddi team captain","district athletics coach","state-level swimmer","local football coach","village wrestling champion"]
+    character = random.choice(SPORTS_ROLES) if raw_char in SPORTS_STARS else raw_char
     setting   = random.choice(world["settings"]) if world["settings"] else city
     scenario  = random.choice(world["scenarios"]) if world["scenarios"] else "daily life"
 
@@ -395,3 +432,7 @@ CRITICAL INSTRUCTION FOR story_explanation:
 - Use Indian Rupees (₹) for money, Indian units where applicable"""
 
     return context
+
+
+
+
