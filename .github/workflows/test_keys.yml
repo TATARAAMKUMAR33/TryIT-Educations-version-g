@@ -11,65 +11,57 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install openai google-genai python-dotenv
+      - run: pip install openai python-dotenv requests
 
       - name: Create env
         run: |
           cat > .env << ENVEOF
-          GROQ_API_KEY_1=${{ secrets.GROQ_API_KEY_1 }}
-          NVIDIA_API_KEY_1=${{ secrets.NVIDIA_API_KEY_1 }}
           SAMBANOVA_API_KEY_1=${{ secrets.SAMBANOVA_API_KEY_1 }}
-          GEMINI_API_KEY_1=${{ secrets.GEMINI_API_KEY_1 }}
+          NVIDIA_API_KEY_1=${{ secrets.NVIDIA_API_KEY_1 }}
           ENVEOF
 
       - name: Write test script
         run: |
           cat > test_providers.py << 'PYEOF'
-          import os
+          import os, requests
           from dotenv import load_dotenv
           load_dotenv()
-          from openai import OpenAI
 
-          def test(name, base_url, key_env, models):
-              key = os.getenv(key_env, '')
-              print(f"\n=== {name} (key length: {len(key)}) ===")
-              if not key:
-                  print("  NO KEY FOUND")
-                  return
-              for model in models:
-                  try:
-                      c = OpenAI(base_url=base_url, api_key=key)
-                      r = c.chat.completions.create(
-                          model=model,
-                          messages=[{"role":"user","content":"Say OK"}],
-                          max_tokens=5, timeout=20
-                      )
-                      print(f"  OK: {model} -> {r.choices[0].message.content}")
-                      return
-                  except Exception as e:
-                      print(f"  FAIL: {model} -> {str(e)[:120]}")
+          # SAMBANOVA - list all available models
+          samba_key = os.getenv("SAMBANOVA_API_KEY_1","")
+          print(f"\n=== SAMBANOVA LIVE MODEL LIST (key length: {len(samba_key)}) ===")
+          if samba_key:
+              try:
+                  r = requests.get(
+                      "https://api.sambanova.ai/v1/models",
+                      headers={"Authorization": f"Bearer {samba_key}"},
+                      timeout=15
+                  )
+                  data = r.json()
+                  models = [m["id"] for m in data.get("data", [])]
+                  print(f"  Found {len(models)} models:")
+                  for m in models:
+                      print(f"    - {m}")
+              except Exception as e:
+                  print(f"  ERROR: {e}")
 
-          test("GROQ", "https://api.groq.com/openai/v1", "GROQ_API_KEY_1",
-               ["openai/gpt-oss-120b","openai/gpt-oss-20b","meta-llama/llama-4-scout-17b-16e-instruct","compound-beta"])
-
-          test("SAMBANOVA", "https://api.sambanova.ai/v1", "SAMBANOVA_API_KEY_1",
-               ["deepseek-v3-2-preview","minimax-m2-7","Meta-Llama-3.1-405B-Instruct","Llama-4-Maverick-17B-128E-Instruct"])
-
-          test("NVIDIA", "https://integrate.api.nvidia.com/v1", "NVIDIA_API_KEY_1",
-               ["meta/llama-4-scout-17b-16e-instruct","meta/llama-3.3-70b-instruct","deepseek-ai/deepseek-v3-2","nvidia/llama-3.3-nemotron-super-49b-v1.5"])
-
-          from google import genai
-          key = os.getenv("GEMINI_API_KEY_1","")
-          print(f"\n=== GEMINI (key length: {len(key)}) ===")
-          if key:
-              for model in ["gemini-3.5-flash","gemini-3.1-flash-lite","gemini-2.5-flash","gemini-2.5-flash-lite"]:
-                  try:
-                      c = genai.Client(api_key=key)
-                      r = c.models.generate_content(model=model, contents="Say OK")
-                      print(f"  OK: {model} -> {r.text[:30]}")
-                      break
-                  except Exception as e:
-                      print(f"  FAIL: {model} -> {str(e)[:120]}")
+          # NVIDIA - list all available models
+          nvidia_key = os.getenv("NVIDIA_API_KEY_1","")
+          print(f"\n=== NVIDIA LIVE MODEL LIST (key length: {len(nvidia_key)}) ===")
+          if nvidia_key:
+              try:
+                  r = requests.get(
+                      "https://integrate.api.nvidia.com/v1/models",
+                      headers={"Authorization": f"Bearer {nvidia_key}"},
+                      timeout=15
+                  )
+                  data = r.json()
+                  models = [m["id"] for m in data.get("data", [])]
+                  print(f"  Found {len(models)} models:")
+                  for m in sorted(models):
+                      print(f"    - {m}")
+              except Exception as e:
+                  print(f"  ERROR: {e}")
           PYEOF
 
       - name: Run test
