@@ -1,0 +1,193 @@
+﻿name: Deep Model Audit
+
+on:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install openai google-genai python-dotenv requests
+
+      - name: Create env
+        run: |
+          cat > .env << ENVEOF
+          GROQ_API_KEY_1=${{ secrets.GROQ_API_KEY_1 }}
+          GROQ_API_KEY_2=${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3=${{ secrets.GROQ_API_KEY_3 }}
+          GROQ_API_KEY_4=${{ secrets.GROQ_API_KEY_4 }}
+          GROQ_API_KEY_5=${{ secrets.GROQ_API_KEY_5 }}
+          GEMINI_API_KEY_1=${{ secrets.GEMINI_API_KEY_1 }}
+          GEMINI_API_KEY_2=${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3=${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4=${{ secrets.GEMINI_API_KEY_4 }}
+          GEMINI_API_KEY_5=${{ secrets.GEMINI_API_KEY_5 }}
+          NVIDIA_API_KEY_1=${{ secrets.NVIDIA_API_KEY_1 }}
+          NVIDIA_API_KEY_2=${{ secrets.NVIDIA_API_KEY_2 }}
+          NVIDIA_API_KEY_3=${{ secrets.NVIDIA_API_KEY_3 }}
+          NVIDIA_API_KEY_4=${{ secrets.NVIDIA_API_KEY_4 }}
+          NVIDIA_API_KEY_5=${{ secrets.NVIDIA_API_KEY_5 }}
+          SAMBANOVA_API_KEY_1=${{ secrets.SAMBANOVA_API_KEY_1 }}
+          SAMBANOVA_API_KEY_2=${{ secrets.SAMBANOVA_API_KEY_2 }}
+          SAMBANOVA_API_KEY_3=${{ secrets.SAMBANOVA_API_KEY_3 }}
+          SAMBANOVA_API_KEY_4=${{ secrets.SAMBANOVA_API_KEY_4 }}
+          SAMBANOVA_API_KEY_5=${{ secrets.SAMBANOVA_API_KEY_5 }}
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+          ENVEOF
+
+      - name: Write audit script
+        run: |
+          cat > audit.py << 'PYEOF'
+          import os, time, requests
+          from openai import OpenAI
+          from google import genai
+          from dotenv import load_dotenv
+          load_dotenv()
+
+          TEST_PROMPT = "Say OK in one word"
+          LONG_PROMPT = "Write 3 MCQ questions about Indian history with 4 options each. Output JSON array."
+          results = {}
+
+          def openai_test(name, base_url, key, models):
+              client = OpenAI(base_url=base_url, api_key=key)
+              for model in models:
+                  t0 = time.time()
+                  try:
+                      r = client.chat.completions.create(
+                          model=model,
+                          messages=[{"role":"user","content":TEST_PROMPT}],
+                          max_tokens=10, timeout=20
+                      )
+                      latency = round(time.time()-t0, 2)
+                      content = r.choices[0].message.content or ""
+                      tokens_in  = r.usage.prompt_tokens if r.usage else 0
+                      tokens_out = r.usage.completion_tokens if r.usage else 0
+                      print(f"  ✅ {model}")
+                      print(f"     latency={latency}s | in={tokens_in} out={tokens_out} | reply={content[:30]}")
+                      return model, latency, True
+                  except Exception as e:
+                      err = str(e)[:100]
+                      status = "RATE_LIMITED" if "429" in err else "CREDITS_GONE" if "402" in err else "NOT_FOUND" if "404" in err else "GONE" if "410" in err else "FAIL"
+                      print(f"  ❌ {model} → {status}: {err[:80]}")
+              return None, 0, False
+
+          def gemini_test(key, key_num):
+              client = genai.Client(api_key=key)
+              models = ["gemini-3.5-flash","gemini-2.5-flash","gemini-2.5-flash-lite","gemini-3.1-flash-lite"]
+              for model in models:
+                  t0 = time.time()
+                  try:
+                      r = client.models.generate_content(model=model, contents=TEST_PROMPT)
+                      latency = round(time.time()-t0, 2)
+                      print(f"  ✅ {model} | latency={latency}s | reply={r.text[:30]}")
+                      return model, latency, True
+                  except Exception as e:
+                      err = str(e)[:100]
+                      status = "RATE_LIMITED" if "429" in err else "QUOTA" if "quota" in err.lower() else "NOT_FOUND" if "404" in err else "FAIL"
+                      print(f"  ❌ {model} → {status}: {err[:80]}")
+              return None, 0, False
+
+          # ── GROQ ──────────────────────────────────────────────────────────
+          print("\n" + "="*60)
+          print("GROQ — Free tier: 30 RPM, 1K RPD ORG-WIDE, 200K TPD")
+          print("WARNING: All 5 keys share ONE org quota")
+          print("="*60)
+          groq_working = []
+          for i in range(1,6):
+              key = os.getenv(f"GROQ_API_KEY_{i}","")
+              if not key: print(f"Key {i}: NOT IN SECRETS"); continue
+              print(f"\nGroq Key {i} (len={len(key)}):")
+              model, lat, ok = openai_test(
+                  f"Groq-{i}",
+                  "https://api.groq.com/openai/v1",
+                  key,
+                  ["openai/gpt-oss-120b","openai/gpt-oss-20b"]
+              )
+              if ok: groq_working.append((i, model, lat))
+          print(f"\nGroq summary: {len(groq_working)}/5 keys working")
+          for ki, m, l in groq_working:
+              print(f"  Key {ki}: {m} @ {l}s")
+
+          # ── GEMINI ────────────────────────────────────────────────────────
+          print("\n" + "="*60)
+          print("GEMINI — Free tier: 15 RPM, 500 RPD PER KEY = 2500/day total")
+          print("="*60)
+          gemini_working = []
+          for i in range(1,6):
+              key = os.getenv(f"GEMINI_API_KEY_{i}","")
+              if not key: print(f"Key {i}: NOT IN SECRETS"); continue
+              print(f"\nGemini Key {i} (len={len(key)}):")
+              model, lat, ok = gemini_test(key, i)
+              if ok: gemini_working.append((i, model, lat))
+          print(f"\nGemini summary: {len(gemini_working)}/5 keys working")
+
+          # ── NVIDIA ────────────────────────────────────────────────────────
+          print("\n" + "="*60)
+          print("NVIDIA — Free: 1000 credits per key (FINITE, not renewable)")
+          print("Startup key: higher credits. 40 RPM per key.")
+          print("="*60)
+          nvidia_working = []
+          for i in range(1,6):
+              key = os.getenv(f"NVIDIA_API_KEY_{i}","")
+              if not key: print(f"Key {i}: NOT IN SECRETS"); continue
+              print(f"\nNVIDIA Key {i} (len={len(key)}):")
+              model, lat, ok = openai_test(
+                  f"NVIDIA-{i}",
+                  "https://integrate.api.nvidia.com/v1",
+                  key,
+                  [
+                      "nvidia/nemotron-3-ultra-550b-a55b",
+                      "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+                      "mistralai/mistral-large-4-1t-a52b",
+                      "moonshotai/kimi-k2.6",
+                      "nvidia/llama-3.1-nemotron-70b-instruct",
+                      "mistralai/mistral-large-2-instruct",
+                      "nvidia/nemotron-3-super-120b-a12b",
+                      "google/gemma-4-31b-it"
+                  ]
+              )
+              if ok: nvidia_working.append((i, model, lat))
+          print(f"\nNVIDIA summary: {len(nvidia_working)}/5 keys working")
+          for ki, m, l in nvidia_working:
+              print(f"  Key {ki}: {m} @ {l}s")
+
+          # ── SAMBANOVA ─────────────────────────────────────────────────────
+          print("\n" + "="*60)
+          print("SAMBANOVA — Free: ~20 RPD per key = 100/day total")
+          print("="*60)
+          samba_working = []
+          for i in range(1,6):
+              key = os.getenv(f"SAMBANOVA_API_KEY_{i}","")
+              if not key: print(f"Key {i}: NOT IN SECRETS"); continue
+              print(f"\nSambaNova Key {i} (len={len(key)}):")
+              model, lat, ok = openai_test(
+                  f"Samba-{i}",
+                  "https://api.sambanova.ai/v1",
+                  key,
+                  ["DeepSeek-V3.2","DeepSeek-V3.1","gpt-oss-120b","Meta-Llama-3.3-70B-Instruct","gemma-4-31B-it"]
+              )
+              if ok: samba_working.append((i, model, lat))
+          print(f"\nSambaNova summary: {len(samba_working)}/5 keys working")
+          for ki, m, l in samba_working:
+              print(f"  Key {ki}: {m} @ {l}s")
+
+          # ── FINAL PLAN ────────────────────────────────────────────────────
+          print("\n" + "="*60)
+          print("CAPACITY SUMMARY")
+          print("="*60)
+          print(f"Groq:      {len(groq_working)}/5 working | 1,000 RPD ORG total | 200K TPD")
+          print(f"Gemini:    {len(gemini_working)}/5 working | {len(gemini_working)*500} RPD total | 15 RPM each")
+          print(f"NVIDIA:    {len(nvidia_working)}/5 working | finite credits | 40 RPM each")
+          print(f"SambaNova: {len(samba_working)}/5 working | {len(samba_working)*20} RPD total | slow")
+          total_daily = min(1000, len(groq_working)*200) + len(gemini_working)*400
+          print(f"\nEstimated max questions/day: {total_daily}")
+          print(f"Estimated per 2hr run: {int(total_daily/12)}")
+          PYEOF
+
+      - name: Run audit
+        run: python3 audit.py
