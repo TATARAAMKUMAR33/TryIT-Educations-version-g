@@ -31,7 +31,7 @@ jobs:
 
       - name: Create .env from secrets
         run: |
-          cat > .env << 'ENVEOF'
+          cat > .env << ENVEOF
           SUPABASE_URL=${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
           GROQ_API_KEY_1=${{ secrets.GROQ_API_KEY_1 }}
@@ -69,6 +69,7 @@ jobs:
       - name: Send Hourly Telegram Report
         if: always()
         run: python3 hourly_report.py
+
 
 
 
