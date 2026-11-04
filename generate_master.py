@@ -72,6 +72,15 @@ print(f" Keys: GROQ={len(GROQ_KEYS)} GEMINI={len(GEMINI_KEYS)} NVIDIA={len(NVIDI
 #  GROQ SETUP 
 GROQ_POOL    = get_pool("Groq", GROQ_KEYS, cooldown_seconds=62)
 GROQ_CLIENTS = {k: OpenAI(base_url="https://api.groq.com/openai/v1", api_key=k) for k in GROQ_KEYS}
+import threading as _th
+_groq_lock = _th.Lock()
+_groq_last = [0.0]
+def groq_rate_wait():
+    with _groq_lock:
+        gap = 2.5 - (time.time() - _groq_last[0])
+        if gap > 0:
+            time.sleep(gap)
+        _groq_last[0] = time.time()
 
 #  GEMINI SETUP 
 # Split Gemini keys: first 3 for generation, last 1 for QA
@@ -345,7 +354,8 @@ def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
     ]
 
     #  PRIMARY: Groq (1,000 RPD org-wide, fastest) 
-    for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
+    groq_rate_wait()
+        for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
         raw = call_openai(GROQ_POOL, GROQ_CLIENTS, model, msgs,
                           max_tokens=4096, timeout=60, label="Groq")
         if raw:
