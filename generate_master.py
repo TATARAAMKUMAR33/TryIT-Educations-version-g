@@ -26,7 +26,8 @@ TARGET: 2,000 Q/run  8 runs/day = 16,000 Q/day
 
 """
 
-import os, json, time, uuid, re, requests
+import os, json, time, uuid, re, requests, warnings
+warnings.filterwarnings("ignore")
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
@@ -238,10 +239,10 @@ def call_gemini(pool, key_to_model, prompt, label="Gemini"):
     if key is None: return None
     model = key_to_model.get(key, "gemini-3.5-flash")
     try:
-        import google.generativeai as genai_legacy
-        genai_legacy.configure(api_key=key)
-        m = genai_legacy.GenerativeModel(model)
-        r = m.generate_content(prompt)
+        from google import genai as genai_new
+        
+        m = genai_new.Client(api_key=key).models
+        r = genai_new.Client(api_key=key).models.generate_content(model=model, contents=prompt)
         raw = r.text or ""
         if raw: pool.mark_success(idx); return raw
         pool.mark_error(idx)
@@ -357,7 +358,7 @@ def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
     groq_rate_wait()
     for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
         raw = call_openai(GROQ_POOL, GROQ_CLIENTS, model, msgs,
-                          max_tokens=4096, timeout=60, label="Groq")
+                          max_tokens=6000, timeout=90, label="Groq")
         if raw:
             data  = extract_list(raw)
             valid = validate_questions(data)
@@ -470,10 +471,10 @@ Score 1-10. Pass if score >= 6 AND checks 1,2,3 all pass.
 Reject immediately if: wrong difficulty level, factual error, or story doesn't connect to answer."""
 
     try:
-        import google.generativeai as genai_legacy
-        genai_legacy.configure(api_key=key)
-        m = genai_legacy.GenerativeModel(model)
-        r = m.generate_content(prompt)
+        from google import genai as genai_new
+        
+        m = genai_new.Client(api_key=key).models
+        r = genai_new.Client(api_key=key).models.generate_content(model=model, contents=prompt)
         txt = re.sub(r"^```json\s*|\s*```$", "", (r.text or "").strip(), flags=re.MULTILINE)
         d = extract_obj(txt)
         if d:
