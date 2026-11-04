@@ -353,8 +353,8 @@ def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
         {"role": "user",   "content": prompt}
     ]
 
-    #  PRIMARY: Groq (1,000 RPD org-wide, fastest) 
-        groq_rate_wait()
+    #  PRIMARY: Groq (1,000 RPD org-wide, fastest)
+    groq_rate_wait()
     for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
         raw = call_openai(GROQ_POOL, GROQ_CLIENTS, model, msgs,
                           max_tokens=4096, timeout=60, label="Groq")
