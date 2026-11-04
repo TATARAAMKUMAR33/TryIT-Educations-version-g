@@ -26,7 +26,7 @@ TARGET: 2,000 Q/run  8 runs/day = 16,000 Q/day
 
 """
 
-import os, json, time, uuid, re
+import os, json, time, uuid, re, requests
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
@@ -45,7 +45,7 @@ load_dotenv(dotenv_path=".env", override=True)
 
 #  CONSTANTS 
 BATCH_SIZE         = 5    # Questions per API call
-CONCURRENT_WORKERS = 3    # Parallel topic threads
+CONCURRENT_WORKERS = 1    # Parallel topic threads
 QUALITY_THRESHOLD  = 6    # Min score to save (1-10)
 TARGET_EASY        = 20   # Q per topic per level (L1-L5)
 TARGET_HARD        = 10   # Q per topic per level (L6-L10)
@@ -93,7 +93,7 @@ for i, k in enumerate(GEMINI_KEYS):
     for model in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-1.5-flash"]:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={k}"
-            r = req.post(url, json={"contents":[{"parts":[{"text":"hi"}]}]}, timeout=15)
+            r = requests.post(url, json={"contents":[{"parts":[{"text":"hi"}]}]}, timeout=15)
             if r.status_code != 200:
                 print(f"  FAIL Gemini key {model}: {r.status_code}", flush=True)
                 continue
