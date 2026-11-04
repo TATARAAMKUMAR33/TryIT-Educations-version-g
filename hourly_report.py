@@ -22,9 +22,9 @@ def safe_count(url):
 # 1. COUNTS — track both v3 (old) and v5 (new) and total
 total      = safe_count(f"{u}/rest/v1/questions?select=id")
 v3_total   = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v7")
-v5_total   = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v5")
+v5_total   = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v7")
 v3_today   = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v7&created_at=gte.{today}")
-v5_today   = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v5&created_at=gte.{today}")
+v5_today   = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v7&created_at=gte.{today}")
 today_total = safe_count(f"{u}/rest/v1/questions?select=id&created_at=gte.{today}")
 
 # 2. DIFFICULTY BREAKDOWN — level to label
@@ -121,8 +121,8 @@ msg += f"🕒 {datetime.now(timezone.utc).strftime('%d %b %Y %H:%M UTC')} | Next
 msg += "📚 <b>QUESTION COUNTS</b>\n"
 msg += f"  Total in DB       : <b>{total}</b>\n"
 msg += f"  Generated Today   : <b>{today_total}</b>\n"
-msg += f"  v5 engine (new)   : {v5_total} | Today: {v5_today}\n"
-msg += f"  v3 engine (old)   : {v3_total} | Today: {v3_today}\n\n"
+msg += f"  v7 engine (new)   : {v5_total} | Today: {v5_today}\n"
+msg += f"  v6 engine (prev)   : {v3_total} | Today: {v3_today}\n\n"
 
 msg += "🎯 <b>TODAY BY DIFFICULTY</b>\n"
 msg += f"  Easy   (L1-L3)  : {easy}\n"
