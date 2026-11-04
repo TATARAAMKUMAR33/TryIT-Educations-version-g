@@ -21,9 +21,9 @@ def safe_count(url):
 
 # 1. COUNTS — track both v3 (old) and v5 (new) and total
 total      = safe_count(f"{u}/rest/v1/questions?select=id")
-v3_total   = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v3")
+v3_total   = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v7")
 v5_total   = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v5")
-v3_today   = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v3&created_at=gte.{today}")
+v3_today   = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v7&created_at=gte.{today}")
 v5_today   = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v5&created_at=gte.{today}")
 today_total = safe_count(f"{u}/rest/v1/questions?select=id&created_at=gte.{today}")
 
@@ -167,3 +167,5 @@ if current_chunk.strip():
     send_tg(current_chunk)
 
 print("✅ Hourly report sent to Telegram!")
+
+
