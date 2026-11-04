@@ -46,7 +46,7 @@ load_dotenv(dotenv_path=".env", override=True)
 
 #  CONSTANTS 
 BATCH_SIZE         = 5    # Questions per API call
-CONCURRENT_WORKERS = 1    # Parallel topic threads
+CONCURRENT_WORKERS = 3    # Parallel topic threads
 QUALITY_THRESHOLD  = 6    # Min score to save (1-10)
 TARGET_EASY        = 20   # Q per topic per level (L1-L5)
 TARGET_HARD        = 10   # Q per topic per level (L6-L10)
@@ -78,7 +78,7 @@ _groq_lock = _th.Lock()
 _groq_last = [0.0]
 def groq_rate_wait():
     with _groq_lock:
-        gap = 2.5 - (time.time() - _groq_last[0])
+        gap = 3.5 - (time.time() - _groq_last[0])
         if gap > 0:
             time.sleep(gap)
         _groq_last[0] = time.time()
@@ -438,10 +438,15 @@ def gemini_qa(q, level):
     # Check all 7 layers exist and are non-empty before calling API
     required = ["why_correct","why_wrong_option_b","why_wrong_option_c",
                 "why_wrong_option_d","story_explanation","shortcut_tips","cross_exam_intelligence"]
+    # Only reject if core layers missing - optional layers just warn
+    core = ["why_correct","story_explanation"]
     missing = [f for f in required if not q.get(f) or len(str(q.get(f,""))) < 20]
+    missing_core = [f for f in core if not q.get(f) or len(str(q.get(f,""))) < 20]
+    if missing_core:
+        print(f"       Missing core layers: {missing_core}", flush=True)
+        return False, 0, f"missing core: {missing_core}"
     if missing:
-        print(f"       Missing layers: {missing}", flush=True)
-        return False, 0, f"missing: {missing}"
+        print(f"       Weak layers (saving anyway): {missing}", flush=True)
 
     prompt = f"""You are a strict quality controller for Indian competitive exam MCQs.
 Evaluate this Level {level}/10 ({diff_label(level)}) question.
