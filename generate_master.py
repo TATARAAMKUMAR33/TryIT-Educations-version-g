@@ -224,8 +224,10 @@ def call_gemini(pool, key_to_model, prompt, label="Gemini"):
     if key is None: return None
     model = key_to_model.get(key, "gemini-3.5-flash")
     try:
-        client = genai.Client(api_key=key)
-        r = client.models.generate_content(model=model, contents=prompt)
+        import google.generativeai as genai_legacy
+        genai_legacy.configure(api_key=key)
+        m = genai_legacy.GenerativeModel(model)
+        r = m.generate_content(prompt)
         raw = r.text or ""
         if raw: pool.mark_success(idx); return raw
         pool.mark_error(idx)
@@ -453,8 +455,10 @@ Score 1-10. Pass if score >= 6 AND checks 1,2,3 all pass.
 Reject immediately if: wrong difficulty level, factual error, or story doesn't connect to answer."""
 
     try:
-        client = genai.Client(api_key=key)
-        r = client.models.generate_content(model=model, contents=prompt)
+        import google.generativeai as genai_legacy
+        genai_legacy.configure(api_key=key)
+        m = genai_legacy.GenerativeModel(model)
+        r = m.generate_content(prompt)
         txt = re.sub(r"^```json\s*|\s*```$", "", (r.text or "").strip(), flags=re.MULTILINE)
         d = extract_obj(txt)
         if d:
@@ -696,4 +700,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
