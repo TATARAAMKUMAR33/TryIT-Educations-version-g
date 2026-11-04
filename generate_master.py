@@ -1,20 +1,20 @@
-# VERSION: 7.0 - FINAL PRODUCTION ENGINE
+﻿# VERSION: 7.0 - FINAL PRODUCTION ENGINE
 """
-TryIT Engine v7 — Final Production
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TryIT Engine v7 â€” Final Production
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 PROVIDERS (confirmed working 2026-11-03):
-  Groq          5 keys  org-wide 1,000 RPD  → PRIMARY generator
-  Gemini 1,3,4  3 keys  500 RPD each        → SECONDARY generator
-  Gemini 5      1 key   500 RPD             → QA gate ONLY
-  NVIDIA        5 keys  finite credits      → L8-10 explanation upgrade
+  Groq          5 keys  org-wide 1,000 RPD  â†’ PRIMARY generator
+  Gemini 1,3,4  3 keys  500 RPD each        â†’ SECONDARY generator
+  Gemini 5      1 key   500 RPD             â†’ QA gate ONLY
+  NVIDIA        5 keys  finite credits      â†’ L8-10 explanation upgrade
   SambaNova     REMOVED (rate-limited, slow)
   OpenAI        REMOVED (no credits)
 
 ARCHITECTURE:
   1 API call = 1 complete question with ALL 7 layers
-  Groq/Gemini → generate full Q+7layers in ONE call
-  Gemini QA   → verify all 7 layers complete + quality check
-  NVIDIA      → upgrade explanation for L8-10 only
+  Groq/Gemini â†’ generate full Q+7layers in ONE call
+  Gemini QA   â†’ verify all 7 layers complete + quality check
+  NVIDIA      â†’ upgrade explanation for L8-10 only
 
 DIFFICULTY QUEUE:
   Priority 1: L2 topics (6,295 needed)
@@ -22,8 +22,8 @@ DIFFICULTY QUEUE:
   Priority 3: L5 topics (514 needed)
   Priority 4: Everything else
 
-TARGET: 2,000 Q/run × 8 runs/day = 16,000 Q/day
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TARGET: 2,000 Q/run Ã— 8 runs/day = 16,000 Q/day
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 """
 
 import os, json, time, uuid, re
@@ -43,17 +43,17 @@ from svg_sanitizer import sanitize_question_svgs
 
 load_dotenv(dotenv_path=".env", override=True)
 
-# ── CONSTANTS ──────────────────────────────────────────────────────────────────
+# â”€â”€ CONSTANTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 BATCH_SIZE         = 5    # Questions per API call
-CONCURRENT_WORKERS = 8    # Parallel topic threads
+CONCURRENT_WORKERS = 3    # Parallel topic threads
 QUALITY_THRESHOLD  = 6    # Min score to save (1-10)
 TARGET_EASY        = 20   # Q per topic per level (L1-L5)
 TARGET_HARD        = 10   # Q per topic per level (L6-L10)
 
-# ── SUPABASE ───────────────────────────────────────────────────────────────────
+# â”€â”€ SUPABASE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 s = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
-# ── KEY LOADER ─────────────────────────────────────────────────────────────────
+# â”€â”€ KEY LOADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def load_keys(prefix, n=5):
     keys = []
     base = os.getenv(prefix)
@@ -67,19 +67,19 @@ GROQ_KEYS   = load_keys("GROQ_API_KEY", 5)
 GEMINI_KEYS = load_keys("GEMINI_API_KEY", 5)
 NVIDIA_KEYS = load_keys("NVIDIA_API_KEY", 5)
 
-print(f"🔑 Keys: GROQ={len(GROQ_KEYS)} GEMINI={len(GEMINI_KEYS)} NVIDIA={len(NVIDIA_KEYS)}", flush=True)
+print(f"ðŸ”‘ Keys: GROQ={len(GROQ_KEYS)} GEMINI={len(GEMINI_KEYS)} NVIDIA={len(NVIDIA_KEYS)}", flush=True)
 
-# ── GROQ SETUP ────────────────────────────────────────────────────────────────
+# â”€â”€ GROQ SETUP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 GROQ_POOL    = get_pool("Groq", GROQ_KEYS, cooldown_seconds=62)
 GROQ_CLIENTS = {k: OpenAI(base_url="https://api.groq.com/openai/v1", api_key=k) for k in GROQ_KEYS}
 
-# ── GEMINI SETUP ─────────────────────────────────────────────────────────────
+# â”€â”€ GEMINI SETUP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Split Gemini keys: first 3 for generation, last 1 for QA
 # Key index 0,1,2 = generators | Key index 3 = QA gate
 GEMINI_WORKING = []
 GEMINI_KEY_TO_MODEL = {}
 
-print("🔎 Probing Gemini keys...", flush=True)
+print("ðŸ”Ž Probing Gemini keys...", flush=True)
 for i, k in enumerate(GEMINI_KEYS):
     for model in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-1.5-flash"]:
         try:
@@ -87,9 +87,10 @@ for i, k in enumerate(GEMINI_KEYS):
             GEMINI_KEY_TO_MODEL[k] = model
             GEMINI_WORKING.append(k)
             role = "QA" if i >= 3 else "GEN"
-            print(f"  ✅ Gemini key {i+1} [{role}] → {model}", flush=True)
+            print(f"  âœ… Gemini key {i+1} [{role}] â†’ {model}", flush=True)
             break
-        except Exception:
+        except Exception as probe_err:
+            print(f'    Gemini probe {model}: {str(probe_err)[:60]}', flush=True)
             continue
 
 # Split working keys: generators vs QA
@@ -101,11 +102,11 @@ GEMINI_QA_POOL  = get_pool("GeminiQA",  GEMINI_QA_KEYS,  cooldown_seconds=65) if
 
 print(f"  Gemini GEN pool: {len(GEMINI_GEN_KEYS)} keys | QA pool: {len(GEMINI_QA_KEYS)} keys", flush=True)
 
-# ── NVIDIA SETUP ──────────────────────────────────────────────────────────────
+# â”€â”€ NVIDIA SETUP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 NVIDIA_POOL    = get_pool("NVIDIA", NVIDIA_KEYS, cooldown_seconds=90)
 NVIDIA_CLIENTS = {k: OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k) for k in NVIDIA_KEYS}
 
-# ── DIFFICULTY HELPERS ────────────────────────────────────────────────────────
+# â”€â”€ DIFFICULTY HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def diff_label(level):
     if level <= 2:  return "Foundation"
     if level <= 4:  return "Easy"
@@ -116,10 +117,10 @@ def diff_label(level):
 def diff_guide(level):
     guides = {
         1:  "Class 1-2 level. Single simple fact. Child of age 6-7 must understand instantly. Example: 'Which animal gives milk?'",
-        2:  "Class 3-4 level. Basic recall. One concept. Student age 8-9. Example: 'What is 7×8?' or 'Capital of Maharashtra?'",
+        2:  "Class 3-4 level. Basic recall. One concept. Student age 8-9. Example: 'What is 7Ã—8?' or 'Capital of Maharashtra?'",
         3:  "Class 5-6 level. Simple application. Two facts connected. Example: 'If 1 dozen = 12, how many eggs in 3 dozen?'",
         4:  "Class 7-8 level. Concept application. Basic reasoning. Example: 'Why does ice float on water?'",
-        5:  "Class 9-10 level. Multi-concept. Board exam style. Example: 'Calculate SI for ₹5000 at 8% for 3 years'",
+        5:  "Class 9-10 level. Multi-concept. Board exam style. Example: 'Calculate SI for â‚¹5000 at 8% for 3 years'",
         6:  "Class 11-12 / State PSC level. Application + one trap option. Example: 'Which Article deals with Right to Education?'",
         7:  "Graduation / SSC CGL / UPSC Prelims level. Two trap options. Multi-step reasoning. Common misconceptions tested.",
         8:  "Post-graduation / GATE / NEET level. Advanced concepts. All options plausible to average student.",
@@ -138,12 +139,12 @@ def story_guide(level):
         6:  "Story character: a competitive exam aspirant named [NAME] preparing for SSC/State PSC. Setting: coaching centre or self-study. They encounter this exact concept and learn the trick.",
         7:  "Story character: an UPSC/SSC CGL aspirant named [NAME]. Setting: mock test or previous year paper discussion. They get this question wrong first, then understand why through a real scenario.",
         8:  "Story character: a final year engineering/medical student named [NAME]. Setting: university lab or hospital. They apply this concept to solve a real professional problem.",
-        9:  "Story character: a professional named [NAME] — IAS officer, doctor, engineer. Setting: real work situation. The concept directly applies to a decision they must make.",
+        9:  "Story character: a professional named [NAME] â€” IAS officer, doctor, engineer. Setting: real work situation. The concept directly applies to a decision they must make.",
         10: "Story character: a researcher or PhD student named [NAME]. Setting: research lab or academic conference. The concept is debated and the correct answer is proven through evidence."
     }
     return guides.get(level, guides[7])
 
-# ── JSON HELPERS ──────────────────────────────────────────────────────────────
+# â”€â”€ JSON HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def extract_list(text):
     if not text: return None
     text = re.sub(r"^```json\s*|\s*```$", "", text.strip(), flags=re.MULTILINE).strip()
@@ -184,7 +185,7 @@ def validate_questions(data):
         valid.append(q)
     return valid
 
-# ── OPENAI-COMPATIBLE CALL ────────────────────────────────────────────────────
+# â”€â”€ OPENAI-COMPATIBLE CALL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def call_openai(pool, clients, model, messages, max_tokens=4096, timeout=90, label=""):
     tried = 0
     total = len(clients)
@@ -206,17 +207,17 @@ def call_openai(pool, clients, model, messages, max_tokens=4096, timeout=90, lab
             err = str(e)
             if "429" in err or "rate" in err.lower() or "quota" in err.lower():
                 pool.mark_rate_limit(idx, cooldown=65)
-                print(f"      ⏳ {label} key#{idx+1} rate-limited", flush=True)
+                print(f"      â³ {label} key#{idx+1} rate-limited", flush=True)
             elif "401" in err or "403" in err:
                 pool.mark_error(idx)
-                print(f"      ❌ {label} key#{idx+1} auth error", flush=True)
+                print(f"      âŒ {label} key#{idx+1} auth error", flush=True)
             elif "timeout" in err.lower():
                 pool.mark_rate_limit(idx, cooldown=30)
             else:
                 pool.mark_error(idx)
     return None
 
-# ── GEMINI CALL ───────────────────────────────────────────────────────────────
+# â”€â”€ GEMINI CALL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def call_gemini(pool, key_to_model, prompt, label="Gemini"):
     if not pool: return None
     idx, key = pool.get_key(wait=False)
@@ -232,16 +233,16 @@ def call_gemini(pool, key_to_model, prompt, label="Gemini"):
         err = str(e)
         if "429" in err or "quota" in err.lower():
             pool.mark_rate_limit(idx, cooldown=70)
-            print(f"      ⏳ {label} key#{idx+1} rate-limited", flush=True)
+            print(f"      â³ {label} key#{idx+1} rate-limited", flush=True)
         elif "503" in err or "overloaded" in err.lower():
             pool.mark_rate_limit(idx, cooldown=30)
         else:
             pool.mark_error(idx)
     return None
 
-# ══════════════════════════════════════════════════════════════════════════════
-# CORE PROMPT — generates complete question with ALL 7 layers in ONE call
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# CORE PROMPT â€” generates complete question with ALL 7 layers in ONE call
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 def build_prompt(topic_name, subject_id, level, count, exam_tags, context):
     exam_str  = ", ".join(exam_tags[:5]) if exam_tags else "UPSC, SSC CGL, RRB NTPC, State PSC"
     dlabel    = diff_label(level)
@@ -253,34 +254,34 @@ Generate exactly {count} unique MCQs.
 
 TOPIC: {topic_name}
 SUBJECT: {subject_id}
-DIFFICULTY: Level {level}/10 — {dlabel}
+DIFFICULTY: Level {level}/10 â€” {dlabel}
 TARGET EXAMS: {exam_str}
 CONTEXT: {context[:400] if context else "Indian educational context"}
 
-━━━ DIFFICULTY REQUIREMENT ━━━
+â”â”â” DIFFICULTY REQUIREMENT â”â”â”
 {dguide}
 Every question MUST match exactly Level {level}/10.
 Reject if too easy or too hard for this level.
 
-━━━ MCQ RULES ━━━
+â”â”â” MCQ RULES â”â”â”
 1. correct_answer is 0-indexed integer (0=A, 1=B, 2=C, 3=D)
 2. All 4 options must be distinct and relevant
 3. For Level 5+: minimum 2 options must seem plausible to average student
 4. For Level 7+: all 4 options must seem plausible, test real misconceptions
 5. No "All of the above" or "None of the above" options
 
-━━━ 7-LAYER EXPLANATION REQUIREMENT ━━━
+â”â”â” 7-LAYER EXPLANATION REQUIREMENT â”â”â”
 Every question MUST have all 7 layers filled completely:
 
-Layer 1 — why_correct:
+Layer 1 â€” why_correct:
 "Step 1: [explain first logical step]. Step 2: [next step]. Step 3: [conclusion]. Therefore [correct option] is right because [final reason]."
 Must be complete step-by-step proof. Never just restate the answer.
 
-Layer 2,3,4 — why_wrong_option_b/c/d:
+Layer 2,3,4 â€” why_wrong_option_b/c/d:
 "Students choose this because [SPECIFIC misconception name]. This is wrong because [exact counter-proof]. The trap here is [what makes it seem right]."
 Each must name the SPECIFIC misconception. Never say "this is incorrect."
 
-Layer 5 — story_explanation:
+Layer 5 â€” story_explanation:
 {sguide}
 RULES FOR STORY:
 - Use the character name from context above
@@ -292,21 +293,21 @@ RULES FOR STORY:
 - Write in simple conversational Hindi-English mix if level 1-4, pure English for level 5+
 - Make it so memorable that student can never forget the answer
 
-Layer 6 — shortcut_tips:
+Layer 6 â€” shortcut_tips:
 "TRICK NAME: [give it a catchy name]. 
-HOW IT WORKS: [the trick in one sentence — mnemonic, pattern, or visual].
+HOW IT WORKS: [the trick in one sentence â€” mnemonic, pattern, or visual].
 APPLY HERE: [show exactly how trick gives answer in under 10 seconds for THIS question].
 EXAM TIP: [which exam uses this trick most and how]."
 Must be a REAL trick, not "just remember this."
 
-Layer 7 — cross_exam_intelligence:
-"UPSC Prelims: this appears as [exact question type — assertion-reason/statement-based/direct] — watch out for [specific trap]. 
+Layer 7 â€” cross_exam_intelligence:
+"UPSC Prelims: this appears as [exact question type â€” assertion-reason/statement-based/direct] â€” watch out for [specific trap]. 
 SSC CGL Tier-1: tested as [angle], wrong answer trap is option [letter] because [reason].
 RRB NTPC: [angle and difficulty].
 [Other relevant exam]: [angle]."
 Must be exam-specific warnings, not generic advice.
 
-━━━ OUTPUT FORMAT ━━━
+â”â”â” OUTPUT FORMAT â”â”â”
 Output ONLY a valid JSON array. No markdown, no explanation, no text outside JSON:
 [
   {{
@@ -323,9 +324,9 @@ Output ONLY a valid JSON array. No markdown, no explanation, no text outside JSO
   }}
 ]"""
 
-# ══════════════════════════════════════════════════════════════════════════════
-# GENERATION — Groq primary, Gemini secondary, one call = full question
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# GENERATION â€” Groq primary, Gemini secondary, one call = full question
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
     context = get_context(topic_id, subject_id) if callable(get_context) else ""
     prompt  = build_prompt(topic_name, subject_id, level, count, exam_tags, context)
@@ -336,7 +337,7 @@ def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
         {"role": "user",   "content": prompt}
     ]
 
-    # ── PRIMARY: Groq (1,000 RPD org-wide, fastest) ──
+    # â”€â”€ PRIMARY: Groq (1,000 RPD org-wide, fastest) â”€â”€
     for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
         raw = call_openai(GROQ_POOL, GROQ_CLIENTS, model, msgs,
                           max_tokens=4096, timeout=60, label="Groq")
@@ -344,10 +345,10 @@ def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
             data  = extract_list(raw)
             valid = validate_questions(data)
             if valid:
-                print(f"      ✍️  {len(valid)}q via Groq {model} L{level}", flush=True)
+                print(f"      âœï¸  {len(valid)}q via Groq {model} L{level}", flush=True)
                 return valid
 
-    # ── SECONDARY: Gemini generation keys (3 keys × 500 RPD = 1,500/day) ──
+    # â”€â”€ SECONDARY: Gemini generation keys (3 keys Ã— 500 RPD = 1,500/day) â”€â”€
     if GEMINI_GEN_POOL:
         # Gemini needs prompt as plain text (no system message)
         gemini_prompt = f"{sys_msg}\n\n{prompt}"
@@ -356,15 +357,15 @@ def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
             data  = extract_list(raw)
             valid = validate_questions(data)
             if valid:
-                print(f"      ✍️  {len(valid)}q via GeminiGen L{level}", flush=True)
+                print(f"      âœï¸  {len(valid)}q via GeminiGen L{level}", flush=True)
                 return valid
 
-    print(f"      ⚠️  All generators failed for L{level} batch", flush=True)
+    print(f"      âš ï¸  All generators failed for L{level} batch", flush=True)
     return []
 
-# ══════════════════════════════════════════════════════════════════════════════
-# NVIDIA UPGRADE — only for L8-10, rewrites explanation with 550B model
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# NVIDIA UPGRADE â€” only for L8-10, rewrites explanation with 550B model
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 def nvidia_upgrade(q, topic_name, level, exam_tags):
     exam_str = ", ".join(exam_tags[:3]) if exam_tags else "UPSC, GATE"
     correct  = q["options"][q["correct_answer"]]
@@ -399,20 +400,20 @@ Return ONLY valid JSON object:
             data = extract_obj(raw)
             if data and data.get("why_correct") and len(data["why_correct"]) > 50:
                 q.update(data)
-                print(f"      🔬 NVIDIA upgrade via {model}", flush=True)
+                print(f"      ðŸ”¬ NVIDIA upgrade via {model}", flush=True)
                 return q
     return q  # Return original if NVIDIA fails
 
-# ══════════════════════════════════════════════════════════════════════════════
-# GEMINI QA GATE — checks ALL 7 layers complete + quality + difficulty match
-# ══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# GEMINI QA GATE â€” checks ALL 7 layers complete + quality + difficulty match
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 def gemini_qa(q, level):
     if not GEMINI_QA_POOL:
-        return True, 7, "no QA pool — auto pass"
+        return True, 7, "no QA pool â€” auto pass"
 
     idx, key = GEMINI_QA_POOL.get_key(wait=False)
     if key is None:
-        return True, 7, "QA cooling — auto pass"
+        return True, 7, "QA cooling â€” auto pass"
 
     model = GEMINI_KEY_TO_MODEL.get(key, "gemini-3.5-flash")
 
@@ -421,7 +422,7 @@ def gemini_qa(q, level):
                 "why_wrong_option_d","story_explanation","shortcut_tips","cross_exam_intelligence"]
     missing = [f for f in required if not q.get(f) or len(str(q.get(f,""))) < 20]
     if missing:
-        print(f"      ✗ Missing layers: {missing}", flush=True)
+        print(f"      âœ— Missing layers: {missing}", flush=True)
         return False, 0, f"missing: {missing}"
 
     prompt = f"""You are a strict quality controller for Indian competitive exam MCQs.
@@ -446,7 +447,7 @@ Check ALL of these strictly:
 7. Are wrong option explanations specific (name the misconception)?
 
 Return ONLY JSON:
-{{"passed": true, "score": 8, "reason": "one sentence — what is good or what failed"}}
+{{"passed": true, "score": 8, "reason": "one sentence â€” what is good or what failed"}}
 
 Score 1-10. Pass if score >= 6 AND checks 1,2,3 all pass.
 Reject immediately if: wrong difficulty level, factual error, or story doesn't connect to answer."""
@@ -462,21 +463,21 @@ Reject immediately if: wrong difficulty level, factual error, or story doesn't c
             score  = int(d.get("score", 0))
             reason = d.get("reason", "")
             if not passed:
-                print(f"      ✗ QA rejected L{level}: {reason[:60]}", flush=True)
+                print(f"      âœ— QA rejected L{level}: {reason[:60]}", flush=True)
             return passed, score, reason
         GEMINI_QA_POOL.mark_error(idx)
-        return True, 6, "parse fail — auto pass"
+        return True, 6, "parse fail â€” auto pass"
     except Exception as e:
         err = str(e)
         if "429" in err or "quota" in err.lower():
             GEMINI_QA_POOL.mark_rate_limit(idx, cooldown=70)
         elif "503" in err or "overloaded" in err.lower():
-            return True, 7, "gemini overloaded — auto pass"
+            return True, 7, "gemini overloaded â€” auto pass"
         else:
             GEMINI_QA_POOL.mark_error(idx)
-        return True, 6, "gemini error — auto pass"
+        return True, 6, "gemini error â€” auto pass"
 
-# ── DB HELPERS ────────────────────────────────────────────────────────────────
+# â”€â”€ DB HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def get_existing_count(topic_id, level):
     try:
         r = s.table("questions").select("id", count="exact") \
@@ -519,18 +520,18 @@ def save_question(q, topic_id, subject_id, level, exam_tags):
     }
 
     if is_duplicate(s, q["question"], topic_id):
-        print("      ♻️  Duplicate — skip", flush=True)
+        print("      â™»ï¸  Duplicate â€” skip", flush=True)
         return False
 
     success, _ = safe_db_insert(s, "questions", rec)
     return success
 
-# ── TOPIC LEVEL PROCESSOR ─────────────────────────────────────────────────────
+# â”€â”€ TOPIC LEVEL PROCESSOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def process_topic_level(topic_id, topic_name, subject_id, level, target, exam_tags):
     existing = get_existing_count(topic_id, level)
     if existing >= target: return 0
     needed = target - existing
-    print(f"   ⏳ {topic_name[:35]} L{level} ({diff_label(level)}): {existing}/{target} need {needed}", flush=True)
+    print(f"   â³ {topic_name[:35]} L{level} ({diff_label(level)}): {existing}/{target} need {needed}", flush=True)
 
     saved       = 0
     empty_rounds = 0
@@ -541,7 +542,7 @@ def process_topic_level(topic_id, topic_name, subject_id, level, target, exam_ta
 
         if not questions:
             empty_rounds += 1
-            print(f"   ⚠️  Empty batch {empty_rounds}/3 — wait 5s", flush=True)
+            print(f"   âš ï¸  Empty batch {empty_rounds}/3 â€” wait 5s", flush=True)
             time.sleep(5)
             continue
 
@@ -559,14 +560,14 @@ def process_topic_level(topic_id, topic_name, subject_id, level, target, exam_ta
             q["_score"] = score
             if save_question(q, topic_id, subject_id, level, exam_tags):
                 saved += 1
-                print(f"      💾 saved {saved}/{needed} L{level} score={score}", flush=True)
+                print(f"      ðŸ’¾ saved {saved}/{needed} L{level} score={score}", flush=True)
 
-        time.sleep(0.3)
+        time.sleep(2.5)
 
-    print(f"   🎉 {topic_name[:30]} L{level}: +{saved}", flush=True)
+    print(f"   ðŸŽ‰ {topic_name[:30]} L{level}: +{saved}", flush=True)
     return saved
 
-# ── TOPIC PROCESSOR ───────────────────────────────────────────────────────────
+# â”€â”€ TOPIC PROCESSOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def process_topic(topic):
     tid   = topic["topic_id"]
     tname = topic.get("topic_name", tid)
@@ -582,18 +583,18 @@ def process_topic(topic):
     except Exception:
         exam_tags = []
 
-    print(f"\n📘 {tname} L{lo}-L{hi} ({diff_label(lo)}→{diff_label(hi)})", flush=True)
+    print(f"\nðŸ“˜ {tname} L{lo}-L{hi} ({diff_label(lo)}â†’{diff_label(hi)})", flush=True)
     total = 0
     for lvl in range(lo, hi+1):
         target = TARGET_EASY if lvl <= 5 else TARGET_HARD
         total += process_topic_level(tid, tname, sid, lvl, target, exam_tags)
     return total
 
-# ── SMART TOPIC QUEUE ─────────────────────────────────────────────────────────
+# â”€â”€ SMART TOPIC QUEUE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def get_priority_topics():
     """
     Priority order:
-    1. L2 start topics (most needed — 6,295 Q gap)
+    1. L2 start topics (most needed â€” 6,295 Q gap)
     2. L4 start topics (2,179 Q gap)
     3. L5 start topics (514 Q gap)
     4. All other phase_1_now topics
@@ -617,13 +618,13 @@ def get_priority_topics():
 
         return sorted(all_topics, key=priority)
     except Exception as e:
-        print(f"⚠️  Topic fetch error: {e}", flush=True)
+        print(f"âš ï¸  Topic fetch error: {e}", flush=True)
         return []
 
-# ── MAIN ──────────────────────────────────────────────────────────────────────
+# â”€â”€ MAIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def main():
-    print("🚀 TryIT Engine v7 — Final Production", flush=True)
-    print("━"*60, flush=True)
+    print("ðŸš€ TryIT Engine v7 â€” Final Production", flush=True)
+    print("â”"*60, flush=True)
     print(f"   Groq GEN:     {len(GROQ_KEYS)} keys | 1,000 RPD org-wide", flush=True)
     print(f"   Gemini GEN:   {len(GEMINI_GEN_KEYS)} keys | {len(GEMINI_GEN_KEYS)*500} RPD", flush=True)
     print(f"   Gemini QA:    {len(GEMINI_QA_KEYS)} keys | {len(GEMINI_QA_KEYS)*500} RPD", flush=True)
@@ -631,12 +632,12 @@ def main():
     print(f"   Workers:      {CONCURRENT_WORKERS}", flush=True)
     print(f"   Batch size:   {BATCH_SIZE}", flush=True)
     print(f"   Min score:    {QUALITY_THRESHOLD}/10", flush=True)
-    print(f"   Priority:     L2 → L4 → L5 → others", flush=True)
+    print(f"   Priority:     L2 â†’ L4 â†’ L5 â†’ others", flush=True)
     print(f"   Target:       ~2,000 Q/run | ~16,000 Q/day (8 runs)", flush=True)
-    print("━"*60, flush=True)
+    print("â”"*60, flush=True)
 
     start    = time.time()
-    max_run  = 113 * 60  # 113 min — safely under GitHub 120-min limit
+    max_run  = 113 * 60  # 113 min â€” safely under GitHub 120-min limit
     grand    = 0
     pass_num = 0
 
@@ -644,12 +645,12 @@ def main():
         elapsed   = int((time.time()-start)/60)
         remaining = int((max_run-(time.time()-start))/60)
 
-        print(f"\n{'═'*60}", flush=True)
+        print(f"\n{'â•'*60}", flush=True)
         print(f"Pass #{pass_num+1} | elapsed={elapsed}m | remaining={remaining}m | saved={grand}", flush=True)
 
         topics = get_priority_topics()
         if not topics:
-            print("⚠️  No topics found — sleep 60s", flush=True)
+            print("âš ï¸  No topics found â€” sleep 60s", flush=True)
             time.sleep(60)
             continue
 
@@ -660,7 +661,7 @@ def main():
             try: lo = int(dr.split("-")[0])
             except: lo = 5
             lo_counts[lo] = lo_counts.get(lo, 0) + 1
-        print(f"📋 {len(topics)} topics | Distribution: {dict(sorted(lo_counts.items()))}", flush=True)
+        print(f"ðŸ“‹ {len(topics)} topics | Distribution: {dict(sorted(lo_counts.items()))}", flush=True)
 
         pass_total = 0
         pass_num  += 1
@@ -677,21 +678,22 @@ def main():
                     print(f"   !! {tid}: {e}", flush=True)
 
         rate = pass_total / max(elapsed, 1)
-        print(f"\n✅ Pass #{pass_num}: +{pass_total} | Grand total: {grand}", flush=True)
+        print(f"\nâœ… Pass #{pass_num}: +{pass_total} | Grand total: {grand}", flush=True)
         print(f"   Rate: {rate:.1f} Q/min | Projected/run: {int(rate*113)}", flush=True)
 
         if pass_total == 0:
-            print("🚨 All APIs rate-limited — sleep 5min to reset", flush=True)
+            print("ðŸš¨ All APIs rate-limited â€” sleep 5min to reset", flush=True)
             time.sleep(300)
         else:
-            print("⏳ 10s breath before next pass...", flush=True)
+            print("â³ 10s breath before next pass...", flush=True)
             time.sleep(10)
 
     elapsed_total = int((time.time()-start)/60)
     rate_final    = grand / max(elapsed_total, 1)
-    print(f"\n⏰ Done. {grand} questions in {elapsed_total} minutes", flush=True)
+    print(f"\nâ° Done. {grand} questions in {elapsed_total} minutes", flush=True)
     print(f"   Rate: {rate_final:.1f} Q/min = {int(rate_final*60)} Q/hr", flush=True)
     print(f"   Projected daily (8 runs): {int(grand*8)} questions", flush=True)
 
 if __name__ == "__main__":
     main()
+
