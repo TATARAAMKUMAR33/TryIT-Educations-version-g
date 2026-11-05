@@ -628,7 +628,7 @@ def get_priority_topics():
         all_topics = (
             s.table("topics")
              .select("topic_id,topic_name,subject_id,difficulty_range,coverage_score")
-             .eq("launch_phase", "phase_1_now")
+             .in_("launch_phase", ["phase_1_now", "phase_2_2027"])
              .execute().data or []
         )
 
