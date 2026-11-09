@@ -1,29 +1,14 @@
-# VERSION: 7.0 - FINAL PRODUCTION ENGINE
+# VERSION: 8.0 - EXAM-AWARE PRODUCTION ENGINE
 """
-TryIT Engine v7  Final Production
-
-PROVIDERS (confirmed working 2026-11-03):
-  Groq          5 keys  org-wide 1,000 RPD   PRIMARY generator
-  Gemini 1,3,4  3 keys  500 RPD each         SECONDARY generator
-  Gemini 5      1 key   500 RPD              QA gate ONLY
-  NVIDIA        5 keys  finite credits       L8-10 explanation upgrade
-  SambaNova     REMOVED (rate-limited, slow)
-  OpenAI        REMOVED (no credits)
-
-ARCHITECTURE:
-  1 API call = 1 complete question with ALL 7 layers
-  Groq/Gemini  generate full Q+7layers in ONE call
-  Gemini QA    verify all 7 layers complete + quality check
-  NVIDIA       upgrade explanation for L8-10 only
-
-DIFFICULTY QUEUE:
-  Priority 1: L2 topics (6,295 needed)
-  Priority 2: L4 topics (2,179 needed)
-  Priority 3: L5 topics (514 needed)
-  Priority 4: Everything else
-
-TARGET: 2,000 Q/run  8 runs/day = 16,000 Q/day
-
+TryIT Engine v8 - Complete Exam-Aware Generation
+- Gemini QA via REST API (no SDK, no connection errors)
+- Tier-based priority: School -> UG -> PG -> Foreign -> Govt -> State -> Pro
+- Exam syllabus map integrated - every question knows its exam
+- Level targets: L1-3=30Q, L4-6=20Q, L7=15Q, L8-9=10Q, L10=5Q
+- Batch size 7 for 15,000 Q/day target
+- Groq global rate limiter (org-wide 1000 RPD)
+- Gemini generation (3 keys) + QA gate (1 key)
+- NVIDIA for L8-10 upgrade only
 """
 
 import os, json, time, uuid, re, requests, warnings
@@ -33,8 +18,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 from supabase import create_client
 from openai import OpenAI
-from google import genai
 import json_repair
+import threading
 
 from backend_engine import safe_db_insert, is_duplicate
 from key_pool import get_pool
@@ -43,18 +28,26 @@ from diagram_mapping import DIAGRAM_KIND_BY_TOPIC_ID
 from svg_sanitizer import sanitize_question_svgs
 
 load_dotenv(dotenv_path=".env", override=True)
+warnings.filterwarnings("ignore")
 
-#  CONSTANTS 
-BATCH_SIZE         = 5    # Questions per API call
-CONCURRENT_WORKERS = 3    # Parallel topic threads
-QUALITY_THRESHOLD  = 6    # Min score to save (1-10)
-TARGET_EASY        = 20   # Q per topic per level (L1-L5)
-TARGET_HARD        = 10   # Q per topic per level (L6-L10)
+# ── CONSTANTS ──────────────────────────────────────────────────────────────────
+BATCH_SIZE         = 7     # Questions per API call (up from 5)
+CONCURRENT_WORKERS = 3     # Parallel topic threads
+QUALITY_THRESHOLD  = 6     # Min score to save
+GROQ_INTERVAL      = 3.5   # Seconds between Groq calls (org-wide rate limit)
 
-#  SUPABASE 
+# Level targets: more questions at easy levels
+def get_target(level):
+    if level <= 3: return 30
+    if level <= 6: return 20
+    if level == 7: return 15
+    if level <= 9: return 10
+    return 5
+
+# ── SUPABASE ───────────────────────────────────────────────────────────────────
 s = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
-#  KEY LOADER 
+# ── KEY LOADER ─────────────────────────────────────────────────────────────────
 def load_keys(prefix, n=5):
     keys = []
     base = os.getenv(prefix)
@@ -68,143 +61,161 @@ GROQ_KEYS   = load_keys("GROQ_API_KEY", 5)
 GEMINI_KEYS = load_keys("GEMINI_API_KEY", 5)
 NVIDIA_KEYS = load_keys("NVIDIA_API_KEY", 5)
 
-print(f" Keys: GROQ={len(GROQ_KEYS)} GEMINI={len(GEMINI_KEYS)} NVIDIA={len(NVIDIA_KEYS)}", flush=True)
+print(f"Keys: GROQ={len(GROQ_KEYS)} GEMINI={len(GEMINI_KEYS)} NVIDIA={len(NVIDIA_KEYS)}", flush=True)
 
-#  GROQ SETUP 
-GROQ_POOL    = get_pool("Groq", GROQ_KEYS, cooldown_seconds=62)
+# ── GROQ SETUP WITH GLOBAL RATE LIMITER ───────────────────────────────────────
+GROQ_POOL    = get_pool("Groq", GROQ_KEYS, cooldown_seconds=65)
 GROQ_CLIENTS = {k: OpenAI(base_url="https://api.groq.com/openai/v1", api_key=k) for k in GROQ_KEYS}
-import threading as _th
-_groq_lock = _th.Lock()
+
+_groq_lock = threading.Lock()
 _groq_last = [0.0]
 def groq_rate_wait():
     with _groq_lock:
-        gap = 3.5 - (time.time() - _groq_last[0])
+        gap = GROQ_INTERVAL - (time.time() - _groq_last[0])
         if gap > 0:
             time.sleep(gap)
         _groq_last[0] = time.time()
 
-#  GEMINI SETUP 
-# Split Gemini keys: first 3 for generation, last 1 for QA
-# Key index 0,1,2 = generators | Key index 3 = QA gate
-GEMINI_WORKING = []
+# ── GEMINI SETUP (REST API - no SDK) ──────────────────────────────────────────
 GEMINI_KEY_TO_MODEL = {}
+GEMINI_WORKING      = []
 
-print(" Probing Gemini keys...", flush=True)
+GEMINI_MODELS = [
+    "gemini-3.5-flash","gemini-2.5-flash",
+    "gemini-2.5-flash-lite","gemini-1.5-flash"
+]
+
+print("Probing Gemini keys via REST...", flush=True)
 for i, k in enumerate(GEMINI_KEYS):
-    for model in ["gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-1.5-flash"]:
+    for model in GEMINI_MODELS:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={k}"
-            r = requests.post(url, json={"contents":[{"parts":[{"text":"hi"}]}]}, timeout=15)
-            if r.status_code != 200:
-                print(f"  FAIL Gemini key {model}: {r.status_code}", flush=True)
-                continue
-            _ = r
-            GEMINI_KEY_TO_MODEL[k] = model
-            GEMINI_WORKING.append(k)
-            role = "QA" if i >= 3 else "GEN"
-            print(f"   Gemini key {i+1} [{role}]  {model}", flush=True)
-            break
-        except Exception as probe_err:
-            print(f'    Gemini probe {model}: {str(probe_err)[:60]}', flush=True)
+            r = requests.post(url,
+                json={"contents":[{"parts":[{"text":"hi"}]}]},
+                timeout=15)
+            if r.status_code == 200:
+                GEMINI_KEY_TO_MODEL[k] = model
+                GEMINI_WORKING.append(k)
+                role = "QA" if i >= 3 else "GEN"
+                print(f"  Gemini key {i+1} [{role}] -> {model}", flush=True)
+                break
+            else:
+                print(f"  Gemini key {i+1} {model}: {r.status_code}", flush=True)
+        except Exception as e:
+            print(f"  Gemini key {i+1} {model}: {str(e)[:50]}", flush=True)
             continue
 
-# Split working keys: generators vs QA
+# Split: first 3 for generation, rest for QA
 GEMINI_GEN_KEYS = [k for i,k in enumerate(GEMINI_WORKING) if i < 3]
 GEMINI_QA_KEYS  = [k for i,k in enumerate(GEMINI_WORKING) if i >= 3]
-
 GEMINI_GEN_POOL = get_pool("GeminiGen", GEMINI_GEN_KEYS, cooldown_seconds=65) if GEMINI_GEN_KEYS else None
 GEMINI_QA_POOL  = get_pool("GeminiQA",  GEMINI_QA_KEYS,  cooldown_seconds=65) if GEMINI_QA_KEYS  else None
 
-print(f"  Gemini GEN pool: {len(GEMINI_GEN_KEYS)} keys | QA pool: {len(GEMINI_QA_KEYS)} keys", flush=True)
+print(f"Gemini GEN: {len(GEMINI_GEN_KEYS)} keys | QA: {len(GEMINI_QA_KEYS)} keys", flush=True)
 
-#  NVIDIA SETUP 
+# ── NVIDIA SETUP ──────────────────────────────────────────────────────────────
 NVIDIA_POOL    = get_pool("NVIDIA", NVIDIA_KEYS, cooldown_seconds=90)
 NVIDIA_CLIENTS = {k: OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k) for k in NVIDIA_KEYS}
 
-#  DIFFICULTY HELPERS 
-def diff_label(level):
-    if level <= 2:  return "Foundation"
-    if level <= 4:  return "Easy"
-    if level <= 6:  return "Medium"
-    if level <= 8:  return "Hard"
-    return "Expert"
+# ── EXAM DIFFICULTY MATRIX ────────────────────────────────────────────────────
+EXAM_LEVEL_MAP = {
+    'class_1':(1,2),'class_2':(1,3),'class_3':(2,3),'class_4':(2,4),
+    'class_5':(2,4),'class_6':(3,5),'class_7':(3,5),'class_8':(4,6),
+    'class_9':(4,6),'class_10':(5,7),'class_11':(5,8),'class_12':(6,8),
+    'jee_main':(7,8),'jee_advanced':(8,10),'neet_ug':(7,9),'gate':(8,10),
+    'cuet_ug':(5,7),'clat':(6,8),'nata':(5,7),'nift':(5,7),
+    'cat':(7,9),'upsc_cse':(7,9),'upsc':(7,9),
+    'ssc_cgl':(5,7),'ssc_chsl':(4,6),'ssc_mts':(3,5),'ssc_gd':(3,5),
+    'rrb_ntpc':(4,6),'rrb_group_d':(3,5),'rrb_je':(5,7),
+    'ibps_po':(5,7),'ibps_clerk':(4,6),'sbi_po':(6,7),'sbi_clerk':(4,6),
+    'tnpsc':(5,7),'uppsc':(6,8),'bpsc':(6,8),
+    'ntse':(4,6),'nmms':(3,5),'kvpy':(6,8),'nda':(5,7),'cds':(5,7),
+    'ielts':(5,7),'toefl':(5,7),'gre':(6,8),'gmat':(6,8),
+    'ca_foundation':(5,7),'ca_intermediate':(6,8),'ca_final':(7,9),
+    'ugc_net':(7,9),'neet_pg':(8,10),'iti':(3,6),
+}
 
-def diff_guide(level):
-    guides = {
-        1:  "Class 1-2 level. Single simple fact. Child of age 6-7 must understand instantly. Example: 'Which animal gives milk?'",
-        2:  "Class 3-4 level. Basic recall. One concept. Student age 8-9. Example: 'What is 78?' or 'Capital of Maharashtra?'",
-        3:  "Class 5-6 level. Simple application. Two facts connected. Example: 'If 1 dozen = 12, how many eggs in 3 dozen?'",
-        4:  "Class 7-8 level. Concept application. Basic reasoning. Example: 'Why does ice float on water?'",
-        5:  "Class 9-10 level. Multi-concept. Board exam style. Example: 'Calculate SI for 5000 at 8% for 3 years'",
-        6:  "Class 11-12 / State PSC level. Application + one trap option. Example: 'Which Article deals with Right to Education?'",
-        7:  "Graduation / SSC CGL / UPSC Prelims level. Two trap options. Multi-step reasoning. Common misconceptions tested.",
-        8:  "Post-graduation / GATE / NEET level. Advanced concepts. All options plausible to average student.",
-        9:  "UPSC Mains / GATE Advanced level. Expert reasoning. Conceptual depth. Analytical thinking required.",
-        10: "Research / PhD entrance level. Highest difficulty. All options seem correct to 90% of students."
-    }
-    return guides.get(level, "Competitive exam level MCQ.")
+def get_exam_level_range(exam_id):
+    for pat, levels in EXAM_LEVEL_MAP.items():
+        if pat in (exam_id or ''):
+            return levels
+    return (3, 7)
 
-def story_guide(level):
-    guides = {
-        1:  "Story character: a 6-year-old child named [NAME]. Setting: home or school. The child must discover the answer through play or a simple daily activity like counting fruits or seeing animals.",
-        2:  "Story character: a Class 3-4 student named [NAME]. Setting: classroom or home. Teacher or parent explains through a simple real-life example.",
-        3:  "Story character: a Class 5-6 student named [NAME]. Setting: school or market. Student solves a small real problem that matches the question concept exactly.",
-        4:  "Story character: a Class 7-8 student named [NAME]. Setting: science lab, history class, or local area. Student questions why something happens and gets a clear answer.",
-        5:  "Story character: a Class 10 student named [NAME] preparing for board exams. Setting: study room or tuition class. The concept clicks through a real-life observation.",
-        6:  "Story character: a competitive exam aspirant named [NAME] preparing for SSC/State PSC. Setting: coaching centre or self-study. They encounter this exact concept and learn the trick.",
-        7:  "Story character: an UPSC/SSC CGL aspirant named [NAME]. Setting: mock test or previous year paper discussion. They get this question wrong first, then understand why through a real scenario.",
-        8:  "Story character: a final year engineering/medical student named [NAME]. Setting: university lab or hospital. They apply this concept to solve a real professional problem.",
-        9:  "Story character: a professional named [NAME]  IAS officer, doctor, engineer. Setting: real work situation. The concept directly applies to a decision they must make.",
-        10: "Story character: a researcher or PhD student named [NAME]. Setting: research lab or academic conference. The concept is debated and the correct answer is proven through evidence."
-    }
-    return guides.get(level, guides[7])
+# ── TIER PRIORITY MAP ─────────────────────────────────────────────────────────
+# Lower number = higher priority
+SUBJECT_TIER = {
+    # Tier 1 — School
+    'cbse':1,'icse_board':1,'tn_state_board':1,'mh_state_board':1,
+    'ap_ts_state_board':1,'karnataka_state_board':1,'up_state_board':1,
+    'bihar_state_board':1,'wb_state_board':1,'gujarat_state_board':1,
+    'punjab_state_board':1,'rajasthan_state_board':1,'mp_state_board':1,
+    'kerala_state_board':1,'odisha_state_board':1,'assam_state_board':1,
+    'nep_school_foundation':1,'cbse_maths':1,'cbse_science':1,
+    'cbse_sst':1,'cbse_physics_11_12':1,'cbse_chemistry_11_12':1,
+    'cbse_biology_11_12':1,
+    # Tier 2 — UG Entrances
+    'ug_pg_entrances':2,
+    # Tier 3 — PG Entrances
+    'gate_prep':3,'mba_cat_prep':3,'medical_pg':3,
+    # Tier 4 — PhD
+    'research_academia':4,
+    # Tier 5 — Foreign
+    'study_abroad_usa':5,'study_abroad_uk':5,'study_abroad_canada':5,
+    'study_abroad_australia':5,'study_abroad_germany':5,'study_abroad_other':5,
+    'international_exams':5,'french_language':5,'german_language':5,
+    'spanish_language':5,'japanese_language':5,'mandarin_chinese':5,
+    'korean_language':5,'arabic_language':5,
+    # Tier 6 — Central Govt
+    'competitive_govt_exams':6,'ssc_exams':6,'rrb_exams':6,
+    'bank_exams':6,'defence_exams':6,'upsc_mains':6,
+    # Tier 7 — State Govt
+    'state_exams':7,'tamil_full':7,'telugu_full':7,'kannada_full':7,
+    'malayalam_full':7,'marathi_full':7,'bengali_full':7,
+    'gujarati_full':7,'punjabi_full':7,'odia_full':7,'assamese_full':7,
+    # Tier 8 — Professional
+    'ca_cs_cma':8,'ca_final':8,'finance_certifications':8,
+    'advanced_finance':8,'law_practice':8,'medical_pg':8,
+    'usmle_prep':8,'international_medical':8,'nursing':8,
+}
 
-#  JSON HELPERS 
+def get_tier(subject_id):
+    return SUBJECT_TIER.get(subject_id, 6)
+
+# ── JSON HELPERS ──────────────────────────────────────────────────────────────
 def extract_list(text):
     if not text: return None
-    text = re.sub(r"^```json\s*|\s*```$", "", text.strip(), flags=re.MULTILINE).strip()
-    candidates = [text]
-    if "[" in text:
-        candidates.append(text[text.find("["):text.rfind("]")+1])
-    for cand in candidates:
+    text = re.sub(r"^```json\s*|\s*```$","",text.strip(),flags=re.MULTILINE).strip()
+    for cand in [text, text[text.find("["):text.rfind("]")+1] if "[" in text else ""]:
         if not cand: continue
         try:
             d = json.loads(cand)
-            if isinstance(d, list): return d
-        except Exception:
+            if isinstance(d,list): return d
+        except:
             try:
                 d = json_repair.loads(cand)
-                if isinstance(d, list): return d
-            except Exception: continue
+                if isinstance(d,list): return d
+            except: continue
     return None
 
 def extract_obj(text):
     if not text: return None
-    text = re.sub(r"^```json\s*|\s*```$", "", text.strip(), flags=re.MULTILINE).strip()
-    m = re.search(r"\{.*\}", text, re.DOTALL)
+    text = re.sub(r"^```json\s*|\s*```$","",text.strip(),flags=re.MULTILINE).strip()
+    m = re.search(r"\{.*\}",text,re.DOTALL)
     if not m: return None
     try: return json_repair.loads(m.group())
-    except Exception: return None
+    except: return None
 
-def validate_questions(data):
-    valid = []
-    for q in (data or []):
-        if not isinstance(q, dict): continue
-        if not q.get("question"): continue
-        if not isinstance(q.get("options"), list): continue
-        if len(q.get("options", [])) != 4: continue
-        if not isinstance(q.get("correct_answer"), int): continue
-        if not (0 <= q.get("correct_answer", -1) <= 3): continue
-        if not q.get("why_correct"): continue
-        if not q.get("story_explanation"): continue
-        valid.append(q)
-    return valid
+def validate_qs(data):
+    return [q for q in (data or []) if
+        isinstance(q,dict) and q.get("question") and
+        isinstance(q.get("options"),list) and len(q["options"])==4 and
+        isinstance(q.get("correct_answer"),int) and 0<=q["correct_answer"]<=3 and
+        q.get("why_correct") and q.get("story_explanation")]
 
-#  OPENAI-COMPATIBLE CALL 
-def call_openai(pool, clients, model, messages, max_tokens=4096, timeout=90, label=""):
+# ── OPENAI CALL ───────────────────────────────────────────────────────────────
+def call_openai(pool, clients, model, messages, max_tokens=5000, timeout=90, label=""):
     tried = 0
-    total = len(clients)
-    while tried < total:
+    while tried < len(clients):
         idx, key = pool.get_key(wait=False)
         if key is None: break
         tried += 1
@@ -213,304 +224,318 @@ def call_openai(pool, clients, model, messages, max_tokens=4096, timeout=90, lab
         try:
             r = client.chat.completions.create(
                 model=model, messages=messages,
-                max_tokens=max_tokens, temperature=0.75, timeout=timeout
-            )
+                max_tokens=max_tokens, temperature=0.75, timeout=timeout)
             raw = r.choices[0].message.content or ""
             if raw: pool.mark_success(idx); return raw
             pool.mark_error(idx)
         except Exception as e:
             err = str(e)
             if "429" in err or "rate" in err.lower() or "quota" in err.lower():
-                pool.mark_rate_limit(idx, cooldown=65)
-                print(f"       {label} key#{idx+1} rate-limited", flush=True)
+                pool.mark_rate_limit(idx, cooldown=70)
+                print(f"      {label} key#{idx+1} rate-limited", flush=True)
             elif "401" in err or "403" in err:
                 pool.mark_error(idx)
-                print(f"       {label} key#{idx+1} auth error", flush=True)
             elif "timeout" in err.lower():
                 pool.mark_rate_limit(idx, cooldown=30)
             else:
                 pool.mark_error(idx)
     return None
 
-#  GEMINI CALL 
-def call_gemini(pool, key_to_model, prompt, label="Gemini"):
+# ── GEMINI REST CALL ──────────────────────────────────────────────────────────
+def call_gemini_rest(pool, key_to_model, prompt, label="Gemini"):
     if not pool: return None
     idx, key = pool.get_key(wait=False)
     if key is None: return None
     model = key_to_model.get(key, "gemini-3.5-flash")
     try:
-        from google import genai as genai_new
-        
-        m = genai_new.Client(api_key=key).models
-        r = genai_new.Client(api_key=key).models.generate_content(model=model, contents=prompt)
-        raw = r.text or ""
-        if raw: pool.mark_success(idx); return raw
-        pool.mark_error(idx)
-    except Exception as e:
-        err = str(e)
-        if "429" in err or "quota" in err.lower():
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+        r = requests.post(url,
+            json={"contents":[{"parts":[{"text":prompt}]}],
+                  "generationConfig":{"temperature":0.75,"maxOutputTokens":5000}},
+            timeout=90)
+        if r.status_code == 200:
+            data = r.json()
+            text = data.get("candidates",[{}])[0].get("content",{}).get("parts",[{}])[0].get("text","")
+            if text:
+                pool.mark_success(idx)
+                return text
+            pool.mark_error(idx)
+        elif r.status_code == 429:
             pool.mark_rate_limit(idx, cooldown=70)
-            print(f"       {label} key#{idx+1} rate-limited", flush=True)
-        elif "503" in err or "overloaded" in err.lower():
-            pool.mark_rate_limit(idx, cooldown=30)
+            print(f"      {label} key#{idx+1} rate-limited", flush=True)
         else:
             pool.mark_error(idx)
+            print(f"      {label} error: {r.status_code}", flush=True)
+    except Exception as e:
+        pool.mark_error(idx)
+        print(f"      {label} exception: {str(e)[:60]}", flush=True)
     return None
 
-# 
-# CORE PROMPT  generates complete question with ALL 7 layers in ONE call
-# 
-def build_prompt(topic_name, subject_id, level, count, exam_tags, context):
-    exam_str  = ", ".join(exam_tags[:5]) if exam_tags else "UPSC, SSC CGL, RRB NTPC, State PSC"
-    dlabel    = diff_label(level)
-    dguide    = diff_guide(level)
-    sguide    = story_guide(level)
+# ── DIFFICULTY HELPERS ────────────────────────────────────────────────────────
+def diff_label(level):
+    if level<=2: return "Foundation"
+    if level<=4: return "Easy"
+    if level<=6: return "Medium"
+    if level<=8: return "Hard"
+    return "Expert"
 
-    return f"""You are India's most experienced MCQ writer for competitive and school exams.
+def diff_guide(level):
+    g = {
+        1:"Class 1-2: Single simple fact. 6-7 year old must understand instantly.",
+        2:"Class 3-4: Basic recall. One concept. Age 8-9 student.",
+        3:"Class 5-6: Simple application. Two facts connected.",
+        4:"Class 7-8: Concept application. Basic reasoning.",
+        5:"Class 9-10: Multi-concept. Board exam style. One step calculation.",
+        6:"Class 11-12 / State PSC: Application with one trap option.",
+        7:"Graduation / SSC CGL / UPSC Prelims: Two trap options. Multi-step.",
+        8:"Post-grad / GATE / NEET: Advanced concepts. All options plausible.",
+        9:"UPSC Mains / GATE Advanced: Expert reasoning. Deep analysis.",
+        10:"Research / PhD: All 4 options seem correct to 90% of students."
+    }
+    return g.get(level,"Competitive exam MCQ.")
+
+def story_guide(level):
+    g = {
+        1:"6-year-old child at home/school. Discovers answer through play.",
+        2:"Class 3-4 student. Teacher explains through simple daily example.",
+        3:"Class 5-6 student at school or market. Solves small real problem.",
+        4:"Class 7-8 student. Questions why something happens, gets clear answer.",
+        5:"Class 10 student preparing for board exams. Concept clicks through observation.",
+        6:"Competitive exam aspirant at coaching centre. Learns the trick.",
+        7:"UPSC/SSC aspirant who gets question wrong first, then understands through real scenario.",
+        8:"Final year engineering/medical student applying concept to professional problem.",
+        9:"IAS officer/doctor/engineer making a real work decision using this concept.",
+        10:"PhD researcher proving the concept through evidence at academic conference."
+    }
+    return g.get(level,g[7])
+
+# ── BUILD PROMPT ──────────────────────────────────────────────────────────────
+def build_prompt(topic_name, subject_id, level, count, exam_tags, context, exam_patterns):
+    exam_str = ", ".join(exam_tags[:5]) if exam_tags else "UPSC, SSC CGL, RRB NTPC"
+    dlabel   = diff_label(level)
+    dguide   = diff_guide(level)
+    sguide   = story_guide(level)
+
+    # Build exam-specific instructions
+    exam_instructions = ""
+    if exam_patterns:
+        exam_instructions = f"""
+EXAM-SPECIFIC ALIGNMENT:
+This question must be suitable for: {exam_str}
+Question pattern: {"Direct recall" if level<=4 else "Application-based" if level<=6 else "Multi-step analytical"}
+{"For school exams: match NCERT/state board chapter exactly." if level<=6 else ""}
+{"For competitive exams: include common exam traps and misconceptions." if level>=5 else ""}
+{"For expert level: all 4 options must seem correct to an average student." if level>=8 else ""}
+"""
+
+    return f"""You are India's top MCQ writer with 20 years experience in {exam_str}.
 Generate exactly {count} unique MCQs.
 
 TOPIC: {topic_name}
 SUBJECT: {subject_id}
-DIFFICULTY: Level {level}/10  {dlabel}
+DIFFICULTY: Level {level}/10 - {dlabel}
 TARGET EXAMS: {exam_str}
-CONTEXT: {context[:400] if context else "Indian educational context"}
-
- DIFFICULTY REQUIREMENT 
+CONTEXT: {context[:300] if context else "Indian educational context"}
+{exam_instructions}
+DIFFICULTY REQUIREMENT:
 {dguide}
-Every question MUST match exactly Level {level}/10.
-Reject if too easy or too hard for this level.
+Every question MUST exactly match Level {level}/10. Reject if wrong level.
 
- MCQ RULES 
-1. correct_answer is 0-indexed integer (0=A, 1=B, 2=C, 3=D)
-2. All 4 options must be distinct and relevant
-3. For Level 5+: minimum 2 options must seem plausible to average student
-4. For Level 7+: all 4 options must seem plausible, test real misconceptions
-5. No "All of the above" or "None of the above" options
+MCQ RULES:
+1. correct_answer: 0-indexed integer (0=A,1=B,2=C,3=D)
+2. All 4 options must be distinct and plausible
+3. Level 5+: minimum 2 options must trick average student
+4. Level 7+: all 4 options must exploit real misconceptions
+5. No "All of the above" or "None of the above"
 
- 7-LAYER EXPLANATION REQUIREMENT 
-Every question MUST have all 7 layers filled completely:
+7-LAYER EXPLANATION - ALL REQUIRED:
 
-Layer 1  why_correct:
-"Step 1: [explain first logical step]. Step 2: [next step]. Step 3: [conclusion]. Therefore [correct option] is right because [final reason]."
-Must be complete step-by-step proof. Never just restate the answer.
+why_correct: "Step 1: [reasoning]. Step 2: [reasoning]. Therefore [option] is correct because [proof]."
+why_wrong_option_b: "Students pick B because [NAMED misconception]. Wrong because [counter-proof]. TRAP: [what makes it seem right]."
+why_wrong_option_c: "Students pick C because [NAMED misconception]. Wrong because [counter-proof]. TRAP: [what makes it seem right]."
+why_wrong_option_d: "Students pick D because [NAMED misconception]. Wrong because [counter-proof]. TRAP: [what makes it seem right]."
 
-Layer 2,3,4  why_wrong_option_b/c/d:
-"Students choose this because [SPECIFIC misconception name]. This is wrong because [exact counter-proof]. The trap here is [what makes it seem right]."
-Each must name the SPECIFIC misconception. Never say "this is incorrect."
+story_explanation: {sguide}
+USE CONTEXT CHARACTER: {context[:100] if context else "Use Ramu/Priya from an Indian city"}
+Story MUST: (1) Use character from context. (2) Character faces SAME problem as question. (3) Solves using SAME logic as correct answer. (4) Final sentence: "This is exactly why [option letter and text] is the answer."
+Write in simple language for level {level} student.
 
-Layer 5  story_explanation:
-{sguide}
-RULES FOR STORY:
-- Use the character name from context above
-- Place story in the city/setting from context
-- Story MUST demonstrate the EXACT concept being tested
-- Character must face the SAME problem as the question
-- Character solves it using SAME logic as correct answer
-- Final sentence MUST be: "This is exactly why [correct option letter and text] is the answer."
-- Write in simple conversational Hindi-English mix if level 1-4, pure English for level 5+
-- Make it so memorable that student can never forget the answer
+shortcut_tips: "TRICK NAME: [catchy name]. HOW: [one-line trick - mnemonic/pattern/visual]. APPLY HERE: [show trick giving answer in 10 seconds on THIS question]. EXAM TIP: [which exam uses this trick most]."
 
-Layer 6  shortcut_tips:
-"TRICK NAME: [give it a catchy name]. 
-HOW IT WORKS: [the trick in one sentence  mnemonic, pattern, or visual].
-APPLY HERE: [show exactly how trick gives answer in under 10 seconds for THIS question].
-EXAM TIP: [which exam uses this trick most and how]."
-Must be a REAL trick, not "just remember this."
+cross_exam_intelligence: "UPSC Prelims: appears as [exact type] - watch [trap]. SSC CGL Tier-1: tested as [angle], wrong trap is [option] because [reason]. RRB NTPC: [angle]. NEET/GATE/Other: [angle]."
 
-Layer 7  cross_exam_intelligence:
-"UPSC Prelims: this appears as [exact question type  assertion-reason/statement-based/direct]  watch out for [specific trap]. 
-SSC CGL Tier-1: tested as [angle], wrong answer trap is option [letter] because [reason].
-RRB NTPC: [angle and difficulty].
-[Other relevant exam]: [angle]."
-Must be exam-specific warnings, not generic advice.
-
- OUTPUT FORMAT 
-Output ONLY a valid JSON array. No markdown, no explanation, no text outside JSON:
+Output ONLY valid JSON array, no markdown, no text outside JSON:
 [
   {{
-    "question": "Complete question text ending with ?",
-    "options": ["A) option text", "B) option text", "C) option text", "D) option text"],
+    "question": "Complete question ending with ?",
+    "options": ["A) text","B) text","C) text","D) text"],
     "correct_answer": 0,
-    "why_correct": "Step 1: ... Step 2: ... Therefore A is correct because ...",
-    "why_wrong_option_b": "Students choose B because [misconception]. Wrong because [proof]. Trap: [what makes it seem right].",
-    "why_wrong_option_c": "Students choose C because [misconception]. Wrong because [proof]. Trap: [what makes it seem right].",
-    "why_wrong_option_d": "Students choose D because [misconception]. Wrong because [proof]. Trap: [what makes it seem right].",
-    "story_explanation": "4-sentence story using character from context. Last sentence: This is exactly why [option] is the answer.",
-    "shortcut_tips": "TRICK NAME: ... HOW IT WORKS: ... APPLY HERE: ... EXAM TIP: ...",
-    "cross_exam_intelligence": "UPSC Prelims: ... SSC CGL: ... RRB NTPC: ... Other: ..."
+    "why_correct": "Step 1:... Step 2:... Therefore A is correct because...",
+    "why_wrong_option_b": "Students pick B because [misconception]. Wrong because [proof]. TRAP: [reason].",
+    "why_wrong_option_c": "Students pick C because [misconception]. Wrong because [proof]. TRAP: [reason].",
+    "why_wrong_option_d": "Students pick D because [misconception]. Wrong because [proof]. TRAP: [reason].",
+    "story_explanation": "4-sentence Indian story. Last sentence: This is exactly why [option] is the answer.",
+    "shortcut_tips": "TRICK NAME: ... HOW: ... APPLY HERE: ... EXAM TIP: ...",
+    "cross_exam_intelligence": "UPSC Prelims:... SSC CGL:... RRB NTPC:... Other:..."
   }}
 ]"""
 
-# 
-# GENERATION  Groq primary, Gemini secondary, one call = full question
-# 
-def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags):
+# ── GENERATE BATCH ────────────────────────────────────────────────────────────
+def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags, exam_patterns):
     context = get_context(topic_id, subject_id) if callable(get_context) else ""
-    prompt  = build_prompt(topic_name, subject_id, level, count, exam_tags, context)
+    prompt  = build_prompt(topic_name, subject_id, level, count, exam_tags, context, exam_patterns)
 
-    sys_msg = "You are a JSON-only MCQ generator. Output ONLY a valid JSON array. Never add text outside the JSON."
-    msgs    = [
-        {"role": "system", "content": sys_msg},
-        {"role": "user",   "content": prompt}
+    sys_msg = "JSON-only MCQ generator. Output ONLY a valid JSON array. Never add text outside JSON."
+    msgs = [
+        {"role":"system","content":sys_msg},
+        {"role":"user","content":prompt}
     ]
 
-    #  PRIMARY: Groq (1,000 RPD org-wide, fastest)
+    # PRIMARY: Groq (1,000 RPD org-wide)
     groq_rate_wait()
-    for model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
-        raw = call_openai(GROQ_POOL, GROQ_CLIENTS, model, msgs,
-                          max_tokens=6000, timeout=90, label="Groq")
+    for model in ["openai/gpt-oss-120b","openai/gpt-oss-20b"]:
+        raw = call_openai(GROQ_POOL, GROQ_CLIENTS, model, msgs, max_tokens=5000, timeout=60, label="Groq")
         if raw:
             data  = extract_list(raw)
-            valid = validate_questions(data)
+            valid = validate_qs(data)
             if valid:
-                print(f"        {len(valid)}q via Groq {model} L{level}", flush=True)
+                print(f"      {len(valid)}q Groq {model} L{level}", flush=True)
                 return valid
 
-    #  SECONDARY: Gemini generation keys (3 keys  500 RPD = 1,500/day) 
+    # SECONDARY: Gemini generation (3 keys x 500 RPD)
     if GEMINI_GEN_POOL:
-        # Gemini needs prompt as plain text (no system message)
-        gemini_prompt = f"{sys_msg}\n\n{prompt}"
-        raw = call_gemini(GEMINI_GEN_POOL, GEMINI_KEY_TO_MODEL, gemini_prompt, "GeminiGen")
+        raw = call_gemini_rest(GEMINI_GEN_POOL, GEMINI_KEY_TO_MODEL,
+                               f"{sys_msg}\n\n{prompt}", "GeminiGen")
         if raw:
             data  = extract_list(raw)
-            valid = validate_questions(data)
+            valid = validate_qs(data)
             if valid:
-                print(f"        {len(valid)}q via GeminiGen L{level}", flush=True)
+                print(f"      {len(valid)}q GeminiGen L{level}", flush=True)
                 return valid
 
-    print(f"        All generators failed for L{level} batch", flush=True)
+    print(f"      All generators failed L{level}", flush=True)
     return []
 
-# 
-# NVIDIA UPGRADE  only for L8-10, rewrites explanation with 550B model
-# 
+# ── NVIDIA UPGRADE (L8-10 only) ───────────────────────────────────────────────
 def nvidia_upgrade(q, topic_name, level, exam_tags):
     exam_str = ", ".join(exam_tags[:3]) if exam_tags else "UPSC, GATE"
     correct  = q["options"][q["correct_answer"]]
 
     prompt = f"""Upgrade this Level {level}/10 MCQ explanation to expert quality for {exam_str}.
+Q: {q["question"]}
+Correct: {correct}
+Current why_correct: {q.get("why_correct","")[:200]}
 
-Question: {q["question"]}
-Correct Answer: {correct}
-Current explanation: {q.get("why_correct","")[:300]}
+Return ONLY JSON object:
+{{"why_correct":"Expert proof with full technical depth. Step 1:[deep]. Step 2:[technical]. Step 3:[conclusion].",
+"why_wrong_option_b":"Deep: [exact conceptual error]. Proof: [technical]. Exam trap: [why toppers fall for this].",
+"why_wrong_option_c":"Deep: [exact conceptual error]. Proof: [technical]. Exam trap: [why toppers fall for this].",
+"why_wrong_option_d":"Deep: [exact conceptual error]. Proof: [technical]. Exam trap: [why toppers fall for this].",
+"shortcut_tips":"TRICK NAME:[advanced]. HOW:[expert]. APPLY HERE:[on this Q]. EXAM TIP:[UPSC/GATE strategy].",
+"cross_exam_intelligence":"UPSC [year]: appeared as [format]. GATE [year]: [angle]. NEET/Other: [trap]."}}"""
 
-Return ONLY valid JSON object:
-{{
-  "why_correct": "Expert-level proof with full technical depth. Step 1: [deep explanation]. Step 2: [technical reasoning]. Step 3: [conclusion with formula/rule citation if applicable].",
-  "why_wrong_option_b": "Deep analysis: [exact conceptual error]. Proof it is wrong: [technical counter-argument]. Common exam trap: [why toppers fall for this].",
-  "why_wrong_option_c": "Deep analysis: [exact conceptual error]. Proof it is wrong: [technical counter-argument]. Common exam trap: [why toppers fall for this].",
-  "why_wrong_option_d": "Deep analysis: [exact conceptual error]. Proof it is wrong: [technical counter-argument]. Common exam trap: [why toppers fall for this].",
-  "shortcut_tips": "TRICK NAME: [advanced pattern]. HOW IT WORKS: [expert trick]. APPLY HERE: [demonstrate on this question]. EXAM TIP: [UPSC/GATE specific strategy].",
-  "cross_exam_intelligence": "UPSC [year if known]: appeared as [format]. GATE [year if known]: tested as [angle]. NEET/Other: [specific angle and trap]."
-}}"""
-
-    msgs = [{"role": "user", "content": prompt}]
-    for model in [
-        "nvidia/nemotron-3-ultra-550b-a55b",
-        "nvidia/llama-3.1-nemotron-ultra-253b-v1",
-        "mistralai/mistral-large-4-1t-a52b",
-        "moonshotai/kimi-k2.6",
-        "nvidia/llama-3.1-nemotron-70b-instruct"
-    ]:
-        raw = call_openai(NVIDIA_POOL, NVIDIA_CLIENTS, model, msgs,
-                          max_tokens=2000, timeout=90, label="NVIDIA")
+    msgs = [{"role":"user","content":prompt}]
+    for model in ["nvidia/nemotron-3-ultra-550b-a55b","nvidia/llama-3.1-nemotron-ultra-253b-v1",
+                  "mistralai/mistral-large-4-1t-a52b","moonshotai/kimi-k2.6"]:
+        raw = call_openai(NVIDIA_POOL, NVIDIA_CLIENTS, model, msgs, max_tokens=2000, timeout=90, label="NVIDIA")
         if raw:
             data = extract_obj(raw)
-            if data and data.get("why_correct") and len(data["why_correct"]) > 50:
+            if data and data.get("why_correct") and len(data["why_correct"])>50:
                 q.update(data)
-                print(f"       NVIDIA upgrade via {model}", flush=True)
+                print(f"      NVIDIA upgrade {model}", flush=True)
                 return q
-    return q  # Return original if NVIDIA fails
+    return q
 
-# 
-# GEMINI QA GATE  checks ALL 7 layers complete + quality + difficulty match
-# 
+# ── GEMINI QA GATE (REST API) ─────────────────────────────────────────────────
 def gemini_qa(q, level):
     if not GEMINI_QA_POOL:
-        return True, 7, "no QA pool  auto pass"
+        return True, 7, "no QA pool"
 
     idx, key = GEMINI_QA_POOL.get_key(wait=False)
     if key is None:
-        return True, 7, "QA cooling  auto pass"
+        return True, 7, "QA cooling"
+
+    # Quick local check first - core layers must exist
+    for field in ["why_correct","story_explanation"]:
+        if not q.get(field) or len(str(q.get(field,""))) < 20:
+            return False, 0, f"missing {field}"
 
     model = GEMINI_KEY_TO_MODEL.get(key, "gemini-3.5-flash")
+    prompt = f"""Strict QA check for Indian competitive exam MCQ. Level {level}/10 ({diff_label(level)}).
 
-    # Check all 7 layers exist and are non-empty before calling API
-    required = ["why_correct","why_wrong_option_b","why_wrong_option_c",
-                "why_wrong_option_d","story_explanation","shortcut_tips","cross_exam_intelligence"]
-    # Only reject if core layers missing - optional layers just warn
-    core = ["why_correct","story_explanation"]
-    missing = [f for f in required if not q.get(f) or len(str(q.get(f,""))) < 20]
-    missing_core = [f for f in core if not q.get(f) or len(str(q.get(f,""))) < 20]
-    if missing_core:
-        print(f"       Missing core layers: {missing_core}", flush=True)
-        return False, 0, f"missing core: {missing_core}"
-    if missing:
-        print(f"       Weak layers (saving anyway): {missing}", flush=True)
-
-    prompt = f"""You are a strict quality controller for Indian competitive exam MCQs.
-Evaluate this Level {level}/10 ({diff_label(level)}) question.
-
-QUESTION: {q.get("question","")}
-OPTIONS: {q.get("options",[])}
-CORRECT INDEX: {q.get("correct_answer",0)}
-
-EXPLANATIONS:
+Q: {q.get("question","")}
+Options: {q.get("options",[])}
+Correct index: {q.get("correct_answer",0)}
 why_correct: {q.get("why_correct","")[:200]}
 story_explanation: {q.get("story_explanation","")[:200]}
-shortcut_tips: {q.get("shortcut_tips","")[:150]}
+shortcut_tips: {q.get("shortcut_tips","")[:100]}
 
-Check ALL of these strictly:
-1. Does difficulty EXACTLY match Level {level}/10? ({diff_guide(level)[:80]})
-2. Is correct answer factually accurate?
-3. Does why_correct have step-by-step proof (not just restate answer)?
-4. Does story_explanation tell a real Indian story where character solves SAME problem as question?
-5. Does story end with "This is exactly why [option] is the answer"?
-6. Does shortcut_tips have TRICK NAME + HOW IT WORKS + APPLY HERE?
-7. Are wrong option explanations specific (name the misconception)?
+CHECK ALL STRICTLY:
+1. Difficulty EXACTLY matches Level {level}/10: {diff_guide(level)[:60]}
+2. Correct answer is factually accurate?
+3. why_correct has step-by-step proof (not just restatement)?
+4. story_explanation: Indian character faces SAME problem, solves with SAME logic, ends "This is exactly why [option] is the answer"?
+5. shortcut_tips has TRICK NAME + HOW + APPLY HERE?
+6. Wrong option explanations name SPECIFIC misconceptions?
 
-Return ONLY JSON:
-{{"passed": true, "score": 8, "reason": "one sentence  what is good or what failed"}}
-
-Score 1-10. Pass if score >= 6 AND checks 1,2,3 all pass.
-Reject immediately if: wrong difficulty level, factual error, or story doesn't connect to answer."""
+Return ONLY JSON: {{"passed":true,"score":8,"reason":"one sentence"}}
+Score 1-10. Pass if score>=6 AND checks 1,2,3 all pass.
+Reject: wrong difficulty, factual error, story doesn't connect to answer."""
 
     try:
-        from google import genai as genai_new
-        
-        m = genai_new.Client(api_key=key).models
-        r = genai_new.Client(api_key=key).models.generate_content(model=model, contents=prompt)
-        txt = re.sub(r"^```json\s*|\s*```$", "", (r.text or "").strip(), flags=re.MULTILINE)
-        d = extract_obj(txt)
-        if d:
-            GEMINI_QA_POOL.mark_success(idx)
-            passed = d.get("passed", False)
-            score  = int(d.get("score", 0))
-            reason = d.get("reason", "")
-            if not passed:
-                print(f"       QA rejected L{level}: {reason[:60]}", flush=True)
-            return passed, score, reason
-        GEMINI_QA_POOL.mark_error(idx)
-        return True, 6, "parse fail  auto pass"
-    except Exception as e:
-        err = str(e)
-        if "429" in err or "quota" in err.lower():
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+        r = requests.post(url,
+            json={"contents":[{"parts":[{"text":prompt}]}],
+                  "generationConfig":{"temperature":0.1,"maxOutputTokens":200}},
+            timeout=30)
+        if r.status_code == 200:
+            data = r.json()
+            text = data.get("candidates",[{}])[0].get("content",{}).get("parts",[{}])[0].get("text","")
+            text = re.sub(r"^```json\s*|\s*```$","",text.strip(),flags=re.MULTILINE)
+            d = extract_obj(text)
+            if d:
+                GEMINI_QA_POOL.mark_success(idx)
+                passed = d.get("passed",False)
+                score  = int(d.get("score",0))
+                reason = d.get("reason","")
+                if not passed:
+                    print(f"      QA rejected L{level}: {reason[:60]}", flush=True)
+                return passed, score, reason
+            GEMINI_QA_POOL.mark_error(idx)
+            return True, 6, "parse fail - auto pass"
+        elif r.status_code == 429:
             GEMINI_QA_POOL.mark_rate_limit(idx, cooldown=70)
-        elif "503" in err or "overloaded" in err.lower():
-            return True, 7, "gemini overloaded  auto pass"
+            return True, 7, "QA rate limited - auto pass"
         else:
             GEMINI_QA_POOL.mark_error(idx)
-        return True, 6, "gemini error  auto pass"
+            return True, 6, f"QA error {r.status_code} - auto pass"
+    except Exception as e:
+        GEMINI_QA_POOL.mark_error(idx)
+        return True, 6, f"QA exception - auto pass"
 
-#  DB HELPERS 
+# ── DB HELPERS ────────────────────────────────────────────────────────────────
 def get_existing_count(topic_id, level):
     try:
-        r = s.table("questions").select("id", count="exact") \
-             .eq("topic_id", topic_id).eq("level", level).execute()
+        r = s.table("questions").select("id",count="exact").eq("topic_id",topic_id).eq("level",level).execute()
         return r.count or 0
-    except Exception: return 0
+    except: return 0
 
-def save_question(q, topic_id, subject_id, level, exam_tags):
+def get_exam_info(topic_id):
+    try:
+        rows = s.table("exam_syllabus_map").select("exam_id,weightage_percent,priority") \
+                .eq("topic_id",topic_id).order("priority").limit(10).execute().data or []
+        exam_tags = [r["exam_id"] for r in rows]
+        # Get exam patterns for difficulty matching
+        patterns = []
+        for eid in exam_tags:
+            for pat in EXAM_LEVEL_MAP.keys():
+                if pat in eid:
+                    patterns.append(pat)
+        return exam_tags, list(set(patterns))
+    except:
+        return [], []
+
+def save_question(q, topic_id, subject_id, level, exam_tags, score):
     diagram_kind = DIAGRAM_KIND_BY_TOPIC_ID.get(topic_id)
     if diagram_kind:
         q = sanitize_question_svgs(q, diagram_kind)
@@ -525,55 +550,55 @@ def save_question(q, topic_id, subject_id, level, exam_tags):
         "question_en":      q["question"],
         "options_en":       q["options"],
         "correct_answer":   q["correct_answer"],
-        "explanation": {k: q.get(k, "") for k in [
+        "explanation": {k: q.get(k,"") for k in [
             "why_correct","why_wrong_option_b","why_wrong_option_c",
             "why_wrong_option_d","story_explanation","shortcut_tips",
-            "cross_exam_intelligence"
-        ]},
+            "cross_exam_intelligence"]},
         "translations":       {},
         "exam_tags":          exam_tags,
-        "has_visual":         False,
-        "visual_type":        None,
+        "has_visual":         DIAGRAM_KIND_BY_TOPIC_ID.get(topic_id) is not None,
+        "visual_type":        DIAGRAM_KIND_BY_TOPIC_ID.get(topic_id),
         "visual_data":        None,
-        "access_tier":        "free" if level <= 6 else "pro",
+        "access_tier":        "free" if level<=6 else "pro",
         "copyright_original": True,
         "verified":           True,
-        "quality_score":      q.get("_score", 7),
+        "quality_score":      score,
         "report_count":       0,
-        "generated_by":       "tryit_v7",
+        "generated_by":       "tryit_v8",
         "created_at":         datetime.now(timezone.utc).isoformat(),
     }
 
     if is_duplicate(s, q["question"], topic_id):
-        print("        Duplicate  skip", flush=True)
+        print("      Duplicate - skip", flush=True)
         return False
 
     success, _ = safe_db_insert(s, "questions", rec)
     return success
 
-#  TOPIC LEVEL PROCESSOR 
-def process_topic_level(topic_id, topic_name, subject_id, level, target, exam_tags):
+# ── PROCESS TOPIC LEVEL ───────────────────────────────────────────────────────
+def process_topic_level(topic_id, topic_name, subject_id, level, exam_tags, exam_patterns):
+    target   = get_target(level)
     existing = get_existing_count(topic_id, level)
     if existing >= target: return 0
     needed = target - existing
-    print(f"    {topic_name[:35]} L{level} ({diff_label(level)}): {existing}/{target} need {needed}", flush=True)
+    print(f"   {topic_name[:35]} L{level} ({diff_label(level)}): {existing}/{target} need {needed}", flush=True)
 
-    saved       = 0
-    empty_rounds = 0
+    saved = 0
+    empty = 0
 
-    while saved < needed and empty_rounds < 3:
+    while saved < needed and empty < 3:
         batch = min(BATCH_SIZE, needed - saved)
-        questions = generate_batch(topic_id, topic_name, subject_id, level, batch, exam_tags)
-
+        questions = generate_batch(topic_id, topic_name, subject_id, level,
+                                   batch, exam_tags, exam_patterns)
         if not questions:
-            empty_rounds += 1
-            print(f"     Empty batch {empty_rounds}/3  wait 5s", flush=True)
+            empty += 1
+            print(f"   Empty {empty}/3 - wait 5s", flush=True)
             time.sleep(5)
             continue
 
-        empty_rounds = 0
+        empty = 0
         for q in questions:
-            # NVIDIA upgrade for expert questions only (saves credits)
+            # NVIDIA upgrade for L8-10
             if level >= 8:
                 q = nvidia_upgrade(q, topic_name, level, exam_tags)
 
@@ -582,17 +607,16 @@ def process_topic_level(topic_id, topic_name, subject_id, level, target, exam_ta
             if not passed or score < QUALITY_THRESHOLD:
                 continue
 
-            q["_score"] = score
-            if save_question(q, topic_id, subject_id, level, exam_tags):
+            if save_question(q, topic_id, subject_id, level, exam_tags, score):
                 saved += 1
-                print(f"       saved {saved}/{needed} L{level} score={score}", flush=True)
+                print(f"      saved {saved}/{needed} L{level} score={score}", flush=True)
 
-        time.sleep(2.5)
+        time.sleep(0.5)
 
-    print(f"    {topic_name[:30]} L{level}: +{saved}", flush=True)
+    print(f"   {topic_name[:30]} L{level}: +{saved}", flush=True)
     return saved
 
-#  TOPIC PROCESSOR 
+# ── PROCESS TOPIC ─────────────────────────────────────────────────────────────
 def process_topic(topic):
     tid   = topic["topic_id"]
     tname = topic.get("topic_name", tid)
@@ -600,69 +624,55 @@ def process_topic(topic):
     dr    = topic.get("difficulty_range") or "2-7"
 
     try: lo, hi = map(int, dr.split("-"))
-    except Exception: lo, hi = 2, 7
+    except: lo, hi = 2, 7
 
-    try:
-        rows      = s.table("exam_syllabus_map").select("exam_id").eq("topic_id", tid).execute().data or []
-        exam_tags = sorted(set(r["exam_id"] for r in rows))
-    except Exception:
-        exam_tags = []
+    exam_tags, exam_patterns = get_exam_info(tid)
+    print(f"\n{tname} L{lo}-{hi} exams={len(exam_tags)}", flush=True)
 
-    print(f"\n {tname} L{lo}-L{hi} ({diff_label(lo)}{diff_label(hi)})", flush=True)
     total = 0
     for lvl in range(lo, hi+1):
-        target = TARGET_EASY if lvl <= 5 else TARGET_HARD
-        total += process_topic_level(tid, tname, sid, lvl, target, exam_tags)
+        total += process_topic_level(tid, tname, sid, lvl, exam_tags, exam_patterns)
     return total
 
-#  SMART TOPIC QUEUE 
+# ── SMART TOPIC QUEUE ─────────────────────────────────────────────────────────
 def get_priority_topics():
-    """
-    Priority order:
-    1. L2 start topics (most needed  6,295 Q gap)
-    2. L4 start topics (2,179 Q gap)
-    3. L5 start topics (514 Q gap)
-    4. All other phase_1_now topics
-    """
+    """Tier-based priority: School -> UG -> PG -> Foreign -> Govt -> State -> Pro"""
     try:
         all_topics = (
             s.table("topics")
-             .select("topic_id,topic_name,subject_id,difficulty_range,coverage_score")
-             .in_("launch_phase", ["phase_1_now", "phase_2_2027"])
+             .select("topic_id,topic_name,subject_id,difficulty_range,coverage_score,is_visual")
+             .in_("launch_phase",["phase_1_now","phase_2_2027"])
              .execute().data or []
         )
 
-        def priority(t):
-            dr = t.get("difficulty_range","2-7")
+        def priority_key(t):
+            sid   = t.get("subject_id","")
+            tier  = get_tier(sid)
+            dr    = t.get("difficulty_range","2-7")
             try: lo = int(dr.split("-")[0])
             except: lo = 5
-            # Lower level = higher priority (fill easy topics first)
-            # Within same level, lower coverage_score = needs more work
-            score = t.get("coverage_score") or 0
-            return (lo, -score)
+            score = t.get("coverage_score") or 50
+            # Within same tier: easy topics first, then by coverage (lower = needs more)
+            return (tier, lo, -score)
 
-        return sorted(all_topics, key=priority)
+        return sorted(all_topics, key=priority_key)
     except Exception as e:
-        print(f"  Topic fetch error: {e}", flush=True)
+        print(f"Topic fetch error: {e}", flush=True)
         return []
 
-#  MAIN 
+# ── MAIN ──────────────────────────────────────────────────────────────────────
 def main():
-    print(" TryIT Engine v7  Final Production", flush=True)
-    print(""*60, flush=True)
-    print(f"   Groq GEN:     {len(GROQ_KEYS)} keys | 1,000 RPD org-wide", flush=True)
-    print(f"   Gemini GEN:   {len(GEMINI_GEN_KEYS)} keys | {len(GEMINI_GEN_KEYS)*500} RPD", flush=True)
-    print(f"   Gemini QA:    {len(GEMINI_QA_KEYS)} keys | {len(GEMINI_QA_KEYS)*500} RPD", flush=True)
-    print(f"   NVIDIA:       {len(NVIDIA_KEYS)} keys | L8-10 upgrade only", flush=True)
-    print(f"   Workers:      {CONCURRENT_WORKERS}", flush=True)
-    print(f"   Batch size:   {BATCH_SIZE}", flush=True)
-    print(f"   Min score:    {QUALITY_THRESHOLD}/10", flush=True)
-    print(f"   Priority:     L2  L4  L5  others", flush=True)
-    print(f"   Target:       ~2,000 Q/run | ~16,000 Q/day (8 runs)", flush=True)
-    print(""*60, flush=True)
+    print("TryIT Engine v8 - Exam-Aware Production", flush=True)
+    print(f"  Groq GEN: {len(GROQ_KEYS)} keys | 1000 RPD org | batch={BATCH_SIZE}", flush=True)
+    print(f"  Gemini GEN: {len(GEMINI_GEN_KEYS)} keys | Gemini QA: {len(GEMINI_QA_KEYS)} keys", flush=True)
+    print(f"  NVIDIA: {len(NVIDIA_KEYS)} keys | L8-10 upgrade only", flush=True)
+    print(f"  Workers: {CONCURRENT_WORKERS} | QA threshold: {QUALITY_THRESHOLD}/10", flush=True)
+    print(f"  Level targets: L1-3=30Q L4-6=20Q L7=15Q L8-9=10Q L10=5Q", flush=True)
+    print(f"  Priority: School->UG->PG->Foreign->Govt->State->Pro", flush=True)
+    print("-"*60, flush=True)
 
     start    = time.time()
-    max_run  = 113 * 60  # 113 min  safely under GitHub 120-min limit
+    max_run  = 113 * 60
     grand    = 0
     pass_num = 0
 
@@ -670,23 +680,21 @@ def main():
         elapsed   = int((time.time()-start)/60)
         remaining = int((max_run-(time.time()-start))/60)
 
-        print(f"\n{''*60}", flush=True)
-        print(f"Pass #{pass_num+1} | elapsed={elapsed}m | remaining={remaining}m | saved={grand}", flush=True)
+        print(f"\n{'='*60}", flush=True)
+        print(f"Pass #{pass_num+1} | {elapsed}m elapsed | {remaining}m left | total={grand}", flush=True)
 
         topics = get_priority_topics()
         if not topics:
-            print("  No topics found  sleep 60s", flush=True)
+            print("No topics found - sleep 60s", flush=True)
             time.sleep(60)
             continue
 
-        # Show priority distribution this pass
-        lo_counts = {}
+        # Show tier distribution
+        tier_dist = {}
         for t in topics:
-            dr = t.get("difficulty_range","2-7")
-            try: lo = int(dr.split("-")[0])
-            except: lo = 5
-            lo_counts[lo] = lo_counts.get(lo, 0) + 1
-        print(f" {len(topics)} topics | Distribution: {dict(sorted(lo_counts.items()))}", flush=True)
+            tier = get_tier(t.get("subject_id",""))
+            tier_dist[tier] = tier_dist.get(tier,0) + 1
+        print(f"{len(topics)} topics | Tiers: {dict(sorted(tier_dist.items()))}", flush=True)
 
         pass_total = 0
         pass_num  += 1
@@ -702,24 +710,21 @@ def main():
                 except Exception as e:
                     print(f"   !! {tid}: {e}", flush=True)
 
-        rate = pass_total / max(elapsed, 1)
-        print(f"\n Pass #{pass_num}: +{pass_total} | Grand total: {grand}", flush=True)
-        print(f"   Rate: {rate:.1f} Q/min | Projected/run: {int(rate*113)}", flush=True)
+        rate = grand / max(elapsed+1, 1)
+        print(f"\nPass #{pass_num}: +{pass_total} | Total: {grand}", flush=True)
+        print(f"Rate: {rate:.1f} Q/min = {int(rate*60)} Q/hr = {int(rate*60*24)} Q/day (projected)", flush=True)
 
         if pass_total == 0:
-            print(" All APIs rate-limited  sleep 5min to reset", flush=True)
+            print("All rate-limited - sleep 5min", flush=True)
             time.sleep(300)
         else:
-            print(" 10s breath before next pass...", flush=True)
             time.sleep(10)
 
-    elapsed_total = int((time.time()-start)/60)
-    rate_final    = grand / max(elapsed_total, 1)
-    print(f"\n Done. {grand} questions in {elapsed_total} minutes", flush=True)
-    print(f"   Rate: {rate_final:.1f} Q/min = {int(rate_final*60)} Q/hr", flush=True)
-    print(f"   Projected daily (8 runs): {int(grand*8)} questions", flush=True)
+    elapsed_m = int((time.time()-start)/60)
+    rate_f    = grand / max(elapsed_m,1)
+    print(f"\nDone. {grand} questions in {elapsed_m} minutes", flush=True)
+    print(f"Rate: {rate_f:.1f} Q/min | {int(rate_f*60)} Q/hr | {int(rate_f*60*24)} Q/day", flush=True)
+    print(f"8 runs/day projected: {int(grand*8)} questions/day", flush=True)
 
 if __name__ == "__main__":
     main()
-
-
