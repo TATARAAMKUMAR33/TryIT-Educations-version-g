@@ -1,6 +1,23 @@
 ﻿import os, requests
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+import os
+
+# Add at top of worker file
+GITHUB_RUN_ID = os.getenv('GITHUB_RUN_ID', 'manual')
+GITHUB_RUN_NUMBER = os.getenv('GITHUB_RUN_NUMBER', '0')
+WORKFLOW_NAME = os.getenv('GITHUB_WORKFLOW', 'manual')
+
+# When inserting questions, add these fields to every insert:
+question_data = {
+    # ... existing fields ...
+    'github_run_id': GITHUB_RUN_ID,
+    'github_run_number': int(GITHUB_RUN_NUMBER) if GITHUB_RUN_NUMBER.isdigit() else 0,
+    'workflow_name': WORKFLOW_NAME,
+    'batch_id': f"{GITHUB_RUN_ID}_{int(time.time())}",
+    'topic_name': topic,  # whatever topic variable you use
+    'exam_target': exam_name,  # whatever exam variable you use
+}
 
 load_dotenv()
 u = os.getenv('SUPABASE_URL'); k = os.getenv('SUPABASE_KEY')
