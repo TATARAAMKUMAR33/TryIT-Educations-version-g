@@ -2,7 +2,7 @@
 
 on:
   schedule:
-    - cron: '0 */3 * * *' # Runs exactly every 1 hour
+    - cron: '0 */2 * * *' # Runs exactly every 1 hour
   workflow_dispatch: # Manual trigger
 
 jobs:
@@ -69,6 +69,7 @@ jobs:
       - name: Send Hourly Telegram Report
         if: always()
         run: python3 hourly_report.py
+
 
 
 

@@ -32,7 +32,7 @@ warnings.filterwarnings("ignore")
 
 # ── CONSTANTS ──────────────────────────────────────────────────────────────────
 CONCURRENT_WORKERS = 3     # Parallel topic threads
-GROQ_INTERVAL      = 3.5   # Seconds between Groq calls (org-wide rate limit)
+GROQ_INTERVAL      = 2.0   # Seconds between Groq calls (reduced for speed)
 
 def get_batch_size(level):
     """Batch=7 for easy levels, batch=5 for hard (less truncation risk)"""
@@ -524,11 +524,36 @@ Reject immediately if: wrong difficulty, factual error, story doesn't end with r
         return True, 6, f"QA exception - auto pass"
 
 # ── DB HELPERS ────────────────────────────────────────────────────────────────
+# Global cache for question counts - loaded once per pass
+_count_cache = {}
+_cache_loaded = False
+
+def load_count_cache():
+    global _count_cache, _cache_loaded
+    try:
+        rows = s.table("questions").select("topic_id,level").execute().data or []
+        _count_cache = {}
+        for r in rows:
+            key = f"{r.get("topic_id")}_{r.get("level")}"
+            _count_cache[key] = _count_cache.get(key,0) + 1
+        _cache_loaded = True
+        print(f"Count cache loaded: {len(rows)} questions, {len(_count_cache)} topic-level pairs", flush=True)
+    except Exception as e:
+        print(f"Cache load failed: {e}", flush=True)
+        _cache_loaded = False
+
 def get_existing_count(topic_id, level):
+    if _cache_loaded:
+        return _count_cache.get(f"{topic_id}_{level}", 0)
     try:
         r = s.table("questions").select("id",count="exact").eq("topic_id",topic_id).eq("level",level).execute()
         return r.count or 0
     except: return 0
+
+def invalidate_cache_entry(topic_id, level):
+    key = f"{topic_id}_{level}"
+    if key in _count_cache:
+        _count_cache[key] = _count_cache.get(key,0) + 1
 
 def get_exam_info(topic_id):
     try:
@@ -583,6 +608,8 @@ def save_question(q, topic_id, subject_id, level, exam_tags, score):
         return False
 
     success, _ = safe_db_insert(s, "questions", rec)
+    if success:
+        invalidate_cache_entry(topic_id, level)
     return success
 
 # ── RETRY STORY (soft rejection handler) ──────────────────────────────────────
@@ -758,6 +785,9 @@ def main():
 
         print(f"\n{'='*60}", flush=True)
         print(f"Pass #{pass_num+1} | {elapsed}m elapsed | {remaining}m left | total={grand}", flush=True)
+
+        # Load count cache once per pass - saves 45+ minutes of DB calls
+        load_count_cache()
 
         topics = get_priority_topics()
         if not topics:
