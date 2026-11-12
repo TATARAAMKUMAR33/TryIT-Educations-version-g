@@ -534,7 +534,9 @@ def load_count_cache():
         rows = s.table("questions").select("topic_id,level").execute().data or []
         _count_cache = {}
         for r in rows:
-            key = f"{r.get("topic_id")}_{r.get("level")}"
+            tid = r.get("topic_id")
+            lvl = r.get("level")
+            key = f"{tid}_{lvl}"
             _count_cache[key] = _count_cache.get(key,0) + 1
         _cache_loaded = True
         print(f"Count cache loaded: {len(rows)} questions, {len(_count_cache)} topic-level pairs", flush=True)
