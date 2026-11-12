@@ -122,6 +122,21 @@ GEMINI_QA_POOL  = get_pool("GeminiQA",  GEMINI_QA_KEYS,  cooldown_seconds=65) if
 
 print(f"Gemini GEN: {len(GEMINI_GEN_KEYS)} keys | QA: {len(GEMINI_QA_KEYS)} keys", flush=True)
 
+# ── SAMBANOVA EMERGENCY FALLBACK ─────────────────────────────────────────────
+SAMBA_KEYS = []
+for i in range(1,6):
+    k = os.getenv(f"SAMBANOVA_API_KEY_{i}") or os.getenv("SAMBANOVA_API_KEY")
+    if k and k.strip() and k not in SAMBA_KEYS:
+        SAMBA_KEYS.append(k.strip())
+
+SAMBA_CLIENTS = {}
+SAMBA_POOL = None
+if SAMBA_KEYS:
+    SAMBA_CLIENTS = {k: OpenAI(
+        base_url="https://api.sambanova.ai/v1", api_key=k) for k in SAMBA_KEYS}
+    SAMBA_POOL = get_pool("SambaNova", SAMBA_KEYS, cooldown_seconds=65)
+    print(f"SambaNova fallback: {len(SAMBA_KEYS)} keys", flush=True)
+
 # ── NVIDIA SETUP ──────────────────────────────────────────────────────────────
 NVIDIA_POOL    = get_pool("NVIDIA", NVIDIA_KEYS, cooldown_seconds=90)
 NVIDIA_CLIENTS = {k: OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k) for k in NVIDIA_KEYS}
@@ -422,6 +437,19 @@ def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags, ex
                 print(f"      {len(valid)}q GeminiGen L{level}", flush=True)
                 return valid
 
+    # TERTIARY: SambaNova emergency fallback
+    if SAMBA_POOL and SAMBA_CLIENTS:
+        for model in ["Meta-Llama-3.3-70B-Instruct","Meta-Llama-3.1-405B-Instruct",
+                      "gemma-4-31B-it"]:
+            raw = call_openai(SAMBA_POOL, SAMBA_CLIENTS, model, msgs,
+                            max_tokens=4000, timeout=60, label="SambaNova")
+            if raw:
+                data  = extract_list(raw)
+                valid = validate_qs(data)
+                if valid:
+                    print(f"      {len(valid)}q SambaNova {model} L{level}", flush=True)
+                    return valid
+
     print(f"      All generators failed L{level}", flush=True)
     return []
 
@@ -686,8 +714,9 @@ def process_topic_level(topic_id, topic_name, subject_id, level, exam_tags, exam
                                    batch, exam_tags, exam_patterns)
         if not questions:
             empty += 1
-            print(f"   Empty {empty}/3 - wait 5s", flush=True)
-            time.sleep(5)
+            empty_wait = 5 if empty < 2 else 30
+            print(f"   Empty {empty}/3 - wait {empty_wait}s", flush=True)
+            time.sleep(empty_wait)
             continue
 
         empty = 0
