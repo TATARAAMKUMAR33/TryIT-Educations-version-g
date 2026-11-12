@@ -1,4 +1,4 @@
-﻿"""
+"""
 hourly_report.py - TryIT Engine v8 Telegram Report
 Sends comprehensive hourly report covering:
 - Question counts by engine version

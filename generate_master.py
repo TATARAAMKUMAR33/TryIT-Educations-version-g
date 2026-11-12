@@ -739,7 +739,7 @@ def get_priority_topics():
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 def main():
     print("TryIT Engine v8 - Exam-Aware Production", flush=True)
-    print(f"  Groq GEN: {len(GROQ_KEYS)} keys | 1000 RPD org | batch={BATCH_SIZE}", flush=True)
+    print(f"  Groq GEN: {len(GROQ_KEYS)} keys | 1000 RPD org | batch=5-7 (dynamic)", flush=True)
     print(f"  Gemini GEN: {len(GEMINI_GEN_KEYS)} keys | Gemini QA: {len(GEMINI_QA_KEYS)} keys", flush=True)
     print(f"  NVIDIA: {len(NVIDIA_KEYS)} keys | L8-10 upgrade only", flush=True)
     print(f"  Workers: {CONCURRENT_WORKERS} | QA threshold: {QUALITY_THRESHOLD}/10", flush=True)
