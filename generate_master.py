@@ -90,7 +90,8 @@ GEMINI_WORKING      = []
 
 GEMINI_MODELS = [
     "gemini-3.5-flash","gemini-2.5-flash",
-    "gemini-2.5-flash-lite","gemini-1.5-flash"
+    "gemini-2.0-flash","gemini-2.0-flash-lite",
+    "gemini-2.5-flash-lite","gemini-1.5-flash","gemini-1.5-flash-8b"
 ]
 
 print("Probing Gemini keys via REST...", flush=True)
@@ -114,8 +115,8 @@ for i, k in enumerate(GEMINI_KEYS):
             continue
 
 # Split: first 3 for generation, rest for QA
-GEMINI_GEN_KEYS = [k for i,k in enumerate(GEMINI_WORKING) if i < 3]
-GEMINI_QA_KEYS  = [k for i,k in enumerate(GEMINI_WORKING) if i >= 3]
+GEMINI_GEN_KEYS = [k for i,k in enumerate(GEMINI_WORKING) if i < 2]
+GEMINI_QA_KEYS  = [k for i,k in enumerate(GEMINI_WORKING) if i >= 2]
 GEMINI_GEN_POOL = get_pool("GeminiGen", GEMINI_GEN_KEYS, cooldown_seconds=65) if GEMINI_GEN_KEYS else None
 GEMINI_QA_POOL  = get_pool("GeminiQA",  GEMINI_QA_KEYS,  cooldown_seconds=65) if GEMINI_QA_KEYS  else None
 
@@ -578,7 +579,7 @@ def save_question(q, topic_id, subject_id, level, exam_tags, score):
         q = sanitize_question_svgs(q, diagram_kind)
 
     rec = {
-        "id":               f"q_{uuid.uuid4().hex[:16]}",
+        "id":               f"q_{uuid.uuid4().hex[:12]}{int(time.time()*1000)%10000:04d}",
         "topic_id":         topic_id,
         "subject_id":       subject_id,
         "level":            level,
