@@ -742,8 +742,8 @@ def main():
     print(f"  Groq GEN: {len(GROQ_KEYS)} keys | 1000 RPD org | batch=5-7 (dynamic)", flush=True)
     print(f"  Gemini GEN: {len(GEMINI_GEN_KEYS)} keys | Gemini QA: {len(GEMINI_QA_KEYS)} keys", flush=True)
     print(f"  NVIDIA: {len(NVIDIA_KEYS)} keys | L8-10 upgrade only", flush=True)
-    print(f"  Workers: {CONCURRENT_WORKERS} | QA threshold: {QUALITY_THRESHOLD}/10", flush=True)
-    print(f"  Level targets: L1-3=30Q L4-6=20Q L7=15Q L8-9=10Q L10=5Q", flush=True)
+    print(f"  Workers: {CONCURRENT_WORKERS} | QA threshold: 6-8/10 (per level)", flush=True)
+    print(f"  Level targets: L1-3=30Q L4-6=20Q L7=15Q L8-9=10Q L10=5Q | batch=dynamic", flush=True)
     print(f"  Priority: School->UG->PG->Foreign->Govt->State->Pro", flush=True)
     print("-"*60, flush=True)
 
