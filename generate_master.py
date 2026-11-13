@@ -415,18 +415,31 @@ def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags, ex
         {"role":"user","content":prompt}
     ]
 
-    # PRIMARY: Groq (1,000 RPD org-wide)
-    groq_rate_wait()
-    for model in ["openai/gpt-oss-120b","openai/gpt-oss-20b"]:
-        raw = call_openai(GROQ_POOL, GROQ_CLIENTS, model, msgs, max_tokens=5000, timeout=60, label="Groq")
-        if raw:
-            data  = extract_list(raw)
-            valid = validate_qs(data)
-            if valid:
-                print(f"      {len(valid)}q Groq {model} L{level}", flush=True)
-                return valid
+    # PRIMARY: Groq (1,000 RPD org-wide) - only if keys available
+    if GROQ_POOL and not GROQ_POOL.all_cooling():
+        groq_rate_wait()
+        for model in ["openai/gpt-oss-120b","openai/gpt-oss-20b"]:
+            raw = call_openai(GROQ_POOL, GROQ_CLIENTS, model, msgs, max_tokens=5000, timeout=60, label="Groq")
+            if raw:
+                data  = extract_list(raw)
+                valid = validate_qs(data)
+                if valid:
+                    print(f"      {len(valid)}q Groq {model} L{level}", flush=True)
+                    return valid
 
-    # SECONDARY: Gemini generation (3 keys x 500 RPD)
+    # SECONDARY-A: SambaNova when Groq exhausted (unlimited RPD)
+    if SAMBA_POOL and SAMBA_CLIENTS:
+        for model in ["Meta-Llama-3.3-70B-Instruct","Meta-Llama-3.1-405B-Instruct"]:
+            raw = call_openai(SAMBA_POOL, SAMBA_CLIENTS, model, msgs,
+                            max_tokens=4000, timeout=60, label="SambaNova")
+            if raw:
+                data  = extract_list(raw)
+                valid = validate_qs(data)
+                if valid:
+                    print(f"      {len(valid)}q SambaNova {model} L{level}", flush=True)
+                    return valid
+
+    # SECONDARY-B: Gemini generation (3 keys x 500 RPD)
     if GEMINI_GEN_POOL:
         raw = call_gemini_rest(GEMINI_GEN_POOL, GEMINI_KEY_TO_MODEL,
                                f"{sys_msg}\n\n{prompt}", "GeminiGen")
@@ -436,19 +449,6 @@ def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags, ex
             if valid:
                 print(f"      {len(valid)}q GeminiGen L{level}", flush=True)
                 return valid
-
-    # TERTIARY: SambaNova emergency fallback
-    if SAMBA_POOL and SAMBA_CLIENTS:
-        for model in ["Meta-Llama-3.3-70B-Instruct","Meta-Llama-3.1-405B-Instruct",
-                      "gemma-4-31B-it"]:
-            raw = call_openai(SAMBA_POOL, SAMBA_CLIENTS, model, msgs,
-                            max_tokens=4000, timeout=60, label="SambaNova")
-            if raw:
-                data  = extract_list(raw)
-                valid = validate_qs(data)
-                if valid:
-                    print(f"      {len(valid)}q SambaNova {model} L{level}", flush=True)
-                    return valid
 
     print(f"      All generators failed L{level}", flush=True)
     return []
