@@ -1,4 +1,4 @@
-"""
+﻿"""
 hourly_report.py - TryIT Engine v8 Telegram Report
 Sends comprehensive hourly report covering:
 - Question counts by engine version
@@ -39,7 +39,7 @@ def send_tg(text):
     except Exception as e:
         print(f"TG error: {e}")
 
-# ── 1. QUESTION COUNTS ────────────────────────────────────────────────────────
+# â”€â”€ 1. QUESTION COUNTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 total         = safe_count(f"{u}/rest/v1/questions?select=id")
 today_total   = safe_count(f"{u}/rest/v1/questions?select=id&created_at=gte.{today}")
 v8_total      = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v8")
@@ -47,7 +47,7 @@ v8_today      = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.try
 v7_today      = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v7&created_at=gte.{today}")
 v6_today      = safe_count(f"{u}/rest/v1/questions?select=id&generated_by=eq.tryit_v6&created_at=gte.{today}")
 
-# ── 2. DIFFICULTY BREAKDOWN TODAY ─────────────────────────────────────────────
+# â”€â”€ 2. DIFFICULTY BREAKDOWN TODAY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 try:
     diff_rows = requests.get(
         f"{u}/rest/v1/questions?select=level&created_at=gte.{today}&limit=5000",
@@ -62,7 +62,7 @@ except:
     easy=medium=hard=expert=0
     level_str="?"
 
-# ── 3. TIER PROGRESS ─────────────────────────────────────────────────────────
+# â”€â”€ 3. TIER PROGRESS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 TIER_SUBJECTS = {
     "T1 School":    ["cbse","icse_board","tn_state","mh_state","ap_ts","karnataka","up_state",
                      "bihar","wb_state","gujarat","punjab","rajasthan","mp_state","kerala",
@@ -93,7 +93,7 @@ try:
 except:
     tier_counts = {}
 
-# ── 4. API KEY STATUS (correct 2026 models) ───────────────────────────────────
+# â”€â”€ 4. API KEY STATUS (correct 2026 models) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def check_key(url, hdr, payload):
     try:
         r = requests.post(url, headers=hdr, json=payload, timeout=10)
@@ -145,7 +145,7 @@ else:
 # SambaNova (removed - show as REMOVED)
 k_status["SambaNova"] = "REMOVED (410 error)"
 
-# ── 5. TOPIC COVERAGE ─────────────────────────────────────────────────────────
+# â”€â”€ 5. TOPIC COVERAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 try:
     topics_total = requests.get(
         f"{u}/rest/v1/topics?select=id",
@@ -161,7 +161,7 @@ except:
     topics_total = "?"
     unique_topics = "?"
 
-# ── 6. SUBJECT BREAKDOWN ─────────────────────────────────────────────────────
+# â”€â”€ 6. SUBJECT BREAKDOWN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 try:
     all_rows = []
     offset = 0
@@ -182,7 +182,7 @@ try:
 except:
     subject_map = {}
 
-# ── 7. NEXT RUN TIME ─────────────────────────────────────────────────────────
+# â”€â”€ 7. NEXT RUN TIME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 now = datetime.now(timezone.utc)
 # Runs every 3 hours
 next_hour = ((now.hour // 3) + 1) * 3
@@ -192,11 +192,11 @@ ist_hour  = (next_hour + 5) % 24
 ist_min   = 30
 next_ist  = f"{ist_hour:02d}:{ist_min:02d} IST"
 
-# ── 8. BUILD MESSAGE ─────────────────────────────────────────────────────────
+# â”€â”€ 8. BUILD MESSAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 def sts(s):
     return "OK" if s=="OK" else s
 
-msg  = f"<b>TRYIT ENGINE v8 — HOURLY REPORT</b>\n"
+msg  = f"<b>TRYIT ENGINE v8 â€” HOURLY REPORT</b>\n"
 msg += f"{now.strftime('%d %b %Y %H:%M UTC')} | Next: {next_utc} ({next_ist})\n\n"
 
 msg += "<b>QUESTION COUNTS</b>\n"
@@ -257,3 +257,4 @@ if current_chunk.strip():
     send_tg(current_chunk)
 
 print("Hourly report sent to Telegram!")
+

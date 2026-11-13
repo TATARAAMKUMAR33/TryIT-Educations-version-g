@@ -89,9 +89,8 @@ GEMINI_KEY_TO_MODEL = {}
 GEMINI_WORKING      = []
 
 GEMINI_MODELS = [
-    "gemini-3.5-flash","gemini-2.5-flash",
-    "gemini-2.0-flash","gemini-2.0-flash-lite",
-    "gemini-2.5-flash-lite","gemini-1.5-flash","gemini-1.5-flash-8b"
+    "gemini-2.5-flash","gemini-3.5-flash",
+    "gemini-2.0-flash","gemini-1.5-flash"
 ]
 
 print("Probing Gemini keys via REST...", flush=True)
@@ -415,8 +414,21 @@ def generate_batch(topic_id, topic_name, subject_id, level, count, exam_tags, ex
         {"role":"user","content":prompt}
     ]
 
-    # PRIMARY: Groq (1,000 RPD org-wide) - only if keys available
-    if GROQ_POOL and not GROQ_POOL.all_cooling():
+    # PRIMARY: SambaNova (high RPD, no org-wide limit)
+    if SAMBA_POOL and SAMBA_CLIENTS:
+        for model in ["Meta-Llama-3.3-70B-Instruct","Qwen2.5-72B-Instruct",
+                      "Meta-Llama-3.1-405B-Instruct"]:
+            raw = call_openai(SAMBA_POOL, SAMBA_CLIENTS, model, msgs,
+                            max_tokens=4000, timeout=60, label="SambaNova")
+            if raw:
+                data  = extract_list(raw)
+                valid = validate_qs(data)
+                if valid:
+                    print(f"      {len(valid)}q SambaNova {model} L{level}", flush=True)
+                    return valid
+
+    # SECONDARY: Groq (1,000 RPD org-wide - backup only)
+    if GROQ_POOL:
         groq_rate_wait()
         for model in ["openai/gpt-oss-120b","openai/gpt-oss-20b"]:
             raw = call_openai(GROQ_POOL, GROQ_CLIENTS, model, msgs, max_tokens=5000, timeout=60, label="Groq")
@@ -560,7 +572,14 @@ _cache_loaded = False
 def load_count_cache():
     global _count_cache, _cache_loaded
     try:
-        rows = s.table("questions").select("topic_id,level").execute().data or []
+        rows = []
+        offset = 0
+        while True:
+            batch = s.table("questions").select("topic_id,level").range(offset, offset+999).execute().data or []
+            rows.extend(batch)
+            if len(batch) < 1000: break
+            offset += 1000
+        print(f"Cache: fetched {len(rows)} total questions", flush=True)
         _count_cache = {}
         for r in rows:
             tid = r.get("topic_id")
@@ -714,7 +733,7 @@ def process_topic_level(topic_id, topic_name, subject_id, level, exam_tags, exam
                                    batch, exam_tags, exam_patterns)
         if not questions:
             empty += 1
-            empty_wait = 5 if empty < 2 else 30
+            empty_wait = 5
             print(f"   Empty {empty}/3 - wait {empty_wait}s", flush=True)
             time.sleep(empty_wait)
             continue
