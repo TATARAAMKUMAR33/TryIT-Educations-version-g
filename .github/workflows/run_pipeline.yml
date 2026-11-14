@@ -57,6 +57,11 @@ jobs:
           OPENAI_API_KEY_1=${{ secrets.OPENAI_API_KEY_1 }}
           OPENAI_API_KEY_2=${{ secrets.OPENAI_API_KEY_2 }}
           OPENAI_API_KEY_3=${{ secrets.OPENAI_API_KEY_3 }}
+          OPENROUTER_API_KEY_1=${{ secrets.OPENROUTER_API_KEY_1 }}
+          OPENROUTER_API_KEY_2=${{ secrets.OPENROUTER_API_KEY_2 }}
+          OPENROUTER_API_KEY_3=${{ secrets.OPENROUTER_API_KEY_3 }}
+          OPENROUTER_API_KEY_4=${{ secrets.OPENROUTER_API_KEY_4 }}
+          OPENROUTER_API_KEY_5=${{ secrets.OPENROUTER_API_KEY_5 }}
           TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID=8486774321
           ENVEOF
@@ -69,6 +74,7 @@ jobs:
       - name: Send Hourly Telegram Report
         if: always()
         run: python3 hourly_report.py
+
 
 
 
