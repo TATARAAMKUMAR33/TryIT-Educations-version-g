@@ -140,6 +140,33 @@ if SAMBA_KEYS:
 NVIDIA_POOL    = get_pool("NVIDIA", NVIDIA_KEYS, cooldown_seconds=90)
 NVIDIA_CLIENTS = {k: OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=k) for k in NVIDIA_KEYS}
 
+# ── OPENROUTER SETUP (Primary - 10+ free models, no daily limit) ────────────
+OR_KEYS = []
+for i in range(1,6):
+    k = os.getenv(f"OPENROUTER_API_KEY_{i}") or os.getenv("OPENROUTER_API_KEY")
+    if k and k.strip() and k not in OR_KEYS:
+        OR_KEYS.append(k.strip())
+
+OR_CLIENTS = {}
+OR_POOL = None
+if OR_KEYS:
+    OR_CLIENTS = {k: OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=k) for k in OR_KEYS}
+    OR_POOL = get_pool("OpenRouter", OR_KEYS, cooldown_seconds=30)
+    print(f"OpenRouter: {len(OR_KEYS)} keys loaded", flush=True)
+
+# Free models on OpenRouter (no daily limit, 20 RPM each)
+OR_FREE_MODELS = [
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "qwen/qwen-2.5-72b-instruct:free",
+    "deepseek/deepseek-r1-distill-llama-70b:free",
+    "mistralai/mistral-7b-instruct:free",
+    "google/gemma-3-27b-it:free",
+    "meta-llama/llama-3.1-8b-instruct:free",
+    "microsoft/phi-3-medium-128k-instruct:free",
+]
+
 # ── EXAM DIFFICULTY MATRIX ────────────────────────────────────────────────────
 EXAM_LEVEL_MAP = {
     'class_1':(1,2),'class_2':(1,3),'class_3':(2,3),'class_4':(2,4),
@@ -817,6 +844,7 @@ def get_priority_topics():
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 def main():
     print("TryIT Engine v8 - Exam-Aware Production", flush=True)
+    print(f"  OpenRouter: {len(OR_KEYS)} keys | free models | unlimited RPD", flush=True)
     print(f"  Groq GEN: {len(GROQ_KEYS)} keys | 1000 RPD org | batch=5-7 (dynamic)", flush=True)
     print(f"  Gemini GEN: {len(GEMINI_GEN_KEYS)} keys | Gemini QA: {len(GEMINI_QA_KEYS)} keys", flush=True)
     print(f"  NVIDIA: {len(NVIDIA_KEYS)} keys | L8-10 upgrade only", flush=True)
