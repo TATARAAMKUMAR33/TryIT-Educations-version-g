@@ -22,5 +22,5 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          # Add AZURE or other keys here if needed later
-        run: python v8_fixer.py
+        # The -u flag forces Python to print to the console immediately
+        run: python -u v8_fixer.py
