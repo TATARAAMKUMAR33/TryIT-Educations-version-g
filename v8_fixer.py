@@ -1,4 +1,4 @@
-﻿import os
+import os
 import requests
 import time
 from collections import Counter
@@ -10,7 +10,7 @@ if SUPABASE_KEY.startswith("Bearer "):
     SUPABASE_KEY = SUPABASE_KEY[7:].strip()
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    print("❌ ERROR: SUPABASE_URL or SUPABASE_KEY environment variables are missing.")
+    print("? ERROR: SUPABASE_URL or SUPABASE_KEY environment variables are missing.")
     exit(1)
 
 headers = {
@@ -19,8 +19,8 @@ headers = {
     'Content-Type': 'application/json'
 }
 
-print("🕵️ Starting V8 Fixer Dry-Run (Read-Only)...", flush=True)
-print("🛑 NO DATA WILL BE CHANGED.\n", flush=True)
+print("??? Starting V8 Fixer Dry-Run (Read-Only)...", flush=True)
+print("?? NO DATA WILL BE CHANGED.\n", flush=True)
 
 problems = Counter()
 clean_count = 0
@@ -30,24 +30,24 @@ limit = 500
 offset = 0
 
 while True:
-    print(f"📥 Fetching rows {offset} to {offset + limit}...", flush=True)
+    print(f"?? Fetching rows {offset} to {offset + limit}...", flush=True)
     try:
         res = requests.get(
-            f'{SUPABASE_URL}/rest/v1/questions?select=id,question_en,options_en,correct_answer,explanation,subject_id,topic_id&limit={limit}&offset={offset}', 
+            f'{SUPABASE_URL}/rest/v1/questions?select=id,question_en,options_en,correct_answer,explanation,subject_id,topic_id&limit={limit}&offset={offset}&order=id.asc', 
             headers=headers, 
             timeout=30 # Prevent infinite hang
         )
     except Exception as e:
-        print(f"❌ Network Error: {e}", flush=True)
+        print(f"? Network Error: {e}", flush=True)
         break
         
     if res.status_code != 200:
-        print(f"❌ API Error: {res.status_code} - {res.text}", flush=True)
+        print(f"? API Error: {res.status_code} - {res.text}", flush=True)
         break
         
     questions = res.json()
     if not questions:
-        print("✅ Reached end of database.", flush=True)
+        print("? Reached end of database.", flush=True)
         break
 
     for q in questions:
@@ -84,13 +84,13 @@ while True:
     time.sleep(0.5)
 
 print("\n" + "="*50, flush=True)
-print("📊 V8 FIXER DRY-RUN REPORT", flush=True)
+print("?? V8 FIXER DRY-RUN REPORT", flush=True)
 print("="*50, flush=True)
 print(f"Total Scanned: {total_scanned}", flush=True)
-print(f"✅ Truly Clean (Passed Dry-Run): {clean_count}", flush=True)
-print(f"📉 Failed Dry-Run: {sum(problems.values())}", flush=True)
+print(f"? Truly Clean (Passed Dry-Run): {clean_count}", flush=True)
+print(f"?? Failed Dry-Run: {sum(problems.values())}", flush=True)
 print("-" * 50, flush=True)
 for problem, count in sorted(problems.items()):
-    print(f"❌ {problem}: {count} questions", flush=True)
+    print(f"? {problem}: {count} questions", flush=True)
 print("="*50, flush=True)
-print("⏸️ NO DATA WAS DELETED OR MODIFIED.", flush=True)
+print("?? NO DATA WAS DELETED OR MODIFIED.", flush=True)
