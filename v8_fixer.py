@@ -3,12 +3,21 @@ import requests
 import time
 from collections import Counter
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+# FIX: .strip() removes any hidden spaces or newlines from GitHub Secrets
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "").strip()
+
+# FIX: In case you accidentally included "Bearer " in the secret itself
+if SUPABASE_KEY.startswith("Bearer "):
+    SUPABASE_KEY = SUPABASE_KEY[7:].strip()
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     print("❌ ERROR: SUPABASE_URL or SUPABASE_KEY environment variables are missing.")
     exit(1)
+
+# Debug: Print the first 5 chars to ensure it loaded correctly
+print(f"🔑 Using Supabase URL: {SUPABASE_URL}")
+print(f"🔑 Using Supabase Key: {SUPABASE_KEY[:5]}*** (Length: {len(SUPABASE_KEY)})\n")
 
 headers = {
     'apikey': SUPABASE_KEY,
