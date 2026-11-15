@@ -1,18 +1,16 @@
 ﻿import os, requests
 from dotenv import load_dotenv
-
 load_dotenv()
-key = os.getenv('SAMBANOVA_API_KEY_1')
-
-if not key:
-    print("❌ No SambaNova key found.")
-else:
-    res = requests.get("https://api.sambanova.ai/v1/models", headers={"Authorization": f"Bearer {key}"})
-    if res.status_code == 200:
-        models = [m['id'] for m in res.json().get('data', [])]
-        print(f"✅ Found {len(models)} models on SambaNova account.\n")
-        print("=== LIST OF ACTIVE MODELS ===")
-        for m in sorted(models):
-            print(f" - {m}")
-    else:
-        print(f"❌ Error: {res.status_code} - {res.text}")
+for i in range(1,6):
+    k = os.getenv(f"SAMBANOVA_API_KEY_{i}")
+    if not k: continue
+    for model in ["Meta-Llama-3.3-70B-Instruct","Meta-Llama-3.1-405B-Instruct","gemma-4-31B-it"]:
+        try:
+            r = requests.post("https://api.sambanova.ai/v1/chat/completions",
+                headers={"Authorization":f"Bearer {k}","Content-Type":"application/json"},
+                json={"model":model,"messages":[{"role":"user","content":"hi"}],"max_tokens":5},
+                timeout=15)
+            print(f"SambaNova key{i} {model}: {r.status_code}")
+            if r.status_code == 200: break
+        except Exception as e:
+            print(f"SambaNova key{i} {model}: {str(e)[:40]}")
