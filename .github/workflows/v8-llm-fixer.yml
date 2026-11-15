@@ -1,0 +1,34 @@
+﻿name: V8 LLM Fixer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-llm-fixer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run LLM Fixer
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+        run: python -u v8_llm_fixer.py
+
+      - name: Upload Staged Fixes Artifact
+        if: always() # Upload even if the script fails
+        uses: actions/upload-artifact@v4
+        with:
+          name: staged-fixes
+          path: staged_fixes.json
