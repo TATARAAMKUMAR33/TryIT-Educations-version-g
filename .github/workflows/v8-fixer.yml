@@ -1,0 +1,26 @@
+﻿name: V8 Engine Fixer
+
+on:
+  workflow_dispatch: # Allows you to manually trigger it
+
+jobs:
+  run-fixer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run V8 Fixer Script (Dry Run)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          # Add AZURE or other keys here if needed later
+        run: python v8_fixer.py
